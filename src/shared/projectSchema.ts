@@ -45,6 +45,7 @@ export type EnvVar = z.output<typeof envVarSchema>;
  * - `hostPath`       — path on the host workstation
  * - `containerPath`  — mounted path used inside Docker
  * - `startCommand`   — shell command to start the dev server
+ * - `scriptName`     — npm script selected for lifecycle execution (Phase 2)
  *
  * **Optional** (REG-01, REG-03, D-04, D-05):
  * - `appUrl`         — URL to open the app in the browser
@@ -71,6 +72,9 @@ export const projectInputSchema = z.object({
   startCommand: z
     .string()
     .min(1, 'Start command is required.'),
+  scriptName: z
+    .string()
+    .optional(),
 
   // --- Optional fields ---
   appUrl: z
