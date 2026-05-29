@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-last_updated: "2026-05-29T21:41:00.000Z"
+last_updated: "2026-05-29T21:53:03.254Z"
 progress:
   total_phases: 5
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 7
-  completed_plans: 6
-  percent: 86
+  completed_plans: 7
+  percent: 20
 ---
 
 # State: devctl
@@ -18,9 +18,9 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-05-29)
 
-**Last session:** 2026-05-29 — Completed 01-06 (create/edit/delete workflows) — 14 min, 4 files created, 58 tests added (138 total)
+**Last session:** 2026-05-29T21:52:23.936Z
 
-**Stopped at:** Completed 01-06-PLAN.md — Plans 01-01 through 01-06 done. Next: 01-07 (integration verification and README).
+**Stopped at:** Completed 01-07-PLAN.md — All Phase 1 plans (01-01 through 01-07) done. Next: Phase 2 (Lifecycle Process Control).
 
 **Core value:** devctl reliably brings the right local dev servers up and down with clear status, without requiring manual terminal juggling after boot.
 **Current focus:** Phase 01 — project-registry-foundation
@@ -35,11 +35,11 @@ Phase 1: Project Registry Foundation
 
 ## Status
 
-Plans 01-01 through 01-06 complete. Registry has full CRUD: toolchain, shared schema, app shell, YAML API, responsive registry page UI, and create/edit/delete form workflows. 138 tests all passing.
+Plans 01-01 through 01-07 complete. All Phase 1 plans done. Registry has full CRUD: toolchain, shared schema, app shell, YAML API, responsive registry page UI, create/edit/delete form workflows, integration test, README, and verification evidence. 144 tests all passing.
 
 ## Next Action
 
-Continue with Plan 01-07 to add integration verification, README, and Phase 1 evidence record.
+Phase 1 complete. Proceed to Phase 2 planning (Lifecycle Process Control — LIFE-01 through LIFE-04).
 
 ## Accumulated Context
 
@@ -66,3 +66,17 @@ Continue with Plan 01-07 to add integration verification, README, and Phase 1 ev
 - D-32: Delete error handling uses structural checks (`error.code || error.message`) instead of `instanceof ApiError` — broader mock/test compatibility while maintaining identical runtime behavior
 - D-33: integration tests use `mockImplementation` with call-count tracking instead of `mockResolvedValueOnce` — avoids Vitest mock queue leakage where `clearAllMocks()` resets call history/results but not `mockResolvedValueOnce` queues
 - D-34: Dialog button detection after MUI Modal opens uses `findByRole` (singleton) instead of `getAllByRole` expecting ≥2 — Modal `aria-hidden` on the background container hides the row's delete button, so only the dialog's button is visible
+- D-35: Integration test uses isolated temp path (mkdtempSync) — never touches real user YAML config (T-01-07-01)
+- D-36: Env values asserted in-memory only — no snapshots or printed output (T-01-07-02)
+- D-37: README explicitly states Phase 1 does not execute commands — stored config only (T-01-07-03)
+- D-38: Verification document covers D-01 through D-13, negative-scope checklist, and full build/test result
+- [Phase 01]: Integration test uses isolated temp path (mkdtempSync) — never touches real user YAML config (T-01-07-01)
+- [Phase 01]: Env values asserted in-memory only — no snapshots or printed output (T-01-07-02)
+- [Phase 01]: README explicitly states Phase 1 does not execute commands — stored config only (T-01-07-03)
+- [Phase 01]: Verification document covers D-01 through D-13, negative-scope checklist, and full build/test result
+
+## Performance Metrics
+
+| Phase | Plan | Duration | Notes |
+|-------|------|----------|-------|
+| Phase 01 P07 | 8 min | 3 tasks | 3 files |
