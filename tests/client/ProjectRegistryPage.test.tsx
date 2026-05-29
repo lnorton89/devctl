@@ -20,9 +20,36 @@ import type { ProjectConfig } from '../../src/shared/projectSchema.js';
 // ---------------------------------------------------------------------------
 
 const mockListProjects = vi.hoisted(() => vi.fn());
+const mockCreateProject = vi.hoisted(() => vi.fn());
+const mockUpdateProject = vi.hoisted(() => vi.fn());
+const mockDeleteProject = vi.hoisted(() => vi.fn());
 
 vi.mock('../../src/client/api/projectsApi', () => ({
   listProjects: mockListProjects,
+  createProject: mockCreateProject,
+  updateProject: mockUpdateProject,
+  deleteProject: mockDeleteProject,
+  ApiError: class ApiError extends Error {
+    status: number;
+    issues: Array<{ path: string; message: string }> | undefined;
+    constructor(
+      status: number,
+      message: string,
+      issues?: Array<{ path: string; message: string }>,
+    ) {
+      super(message);
+      this.name = 'ApiError';
+      this.status = status;
+      this.issues = issues;
+    }
+    get hasFieldIssues(): boolean {
+      return (
+        this.status === 400 &&
+        Array.isArray(this.issues) &&
+        this.issues.length > 0
+      );
+    }
+  },
 }));
 
 // ---------------------------------------------------------------------------
@@ -373,6 +400,83 @@ describe('ProjectRegistryPage', () => {
   });
 
   // ----- No env values in registry display (T-01-05-01) -----
+
+  // ===================================================================
+  // Drawer integration (Plan 06 Task 1)
+  // ===================================================================
+
+  it('opens create form drawer when Add project is clicked', async () => {
+    mockListProjects.mockResolvedValue([]);
+    render(<ProjectRegistryPage />);
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: /add project/i }));
+
+    // Drawer should show form fields (create mode)
+    await waitFor(() => {
+      expect(screen.getByLabelText(/host path/i)).toBeInTheDocument();
+    });
+    expect(screen.getByLabelText(/container path/i)).toBeInTheDocument();
+    expect(screen.getByLabelText(/start command/i)).toBeInTheDocument();
+  });
+
+  it('opens edit form drawer when Edit project is clicked', async () => {
+    const project = sampleProject({
+      id: 'p1',
+      name: 'Edit Me',
+      hostPath: '/custom/host',
+    });
+    mockListProjects.mockResolvedValue([project]);
+    render(<ProjectRegistryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Edit Me')).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Edit project' }));
+
+    // Drawer should show with pre-populated project data
+    await waitFor(() => {
+      expect(screen.getByDisplayValue('Edit Me')).toBeInTheDocument();
+    });
+    expect(screen.getByDisplayValue('/custom/host')).toBeInTheDocument();
+  });
+
+  it('closes drawer and reloads projects after successful save', async () => {
+    mockListProjects.mockResolvedValue([]);
+    mockCreateProject.mockResolvedValue({
+      id: 'new_id',
+      name: 'New Project',
+      hostPath: '/host',
+      containerPath: '/container',
+      startCommand: 'npm start',
+      env: [],
+      autostart: false,
+    });
+
+    render(<ProjectRegistryPage />);
+
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole('button', { name: /add project/i }));
+
+    // Fill the form
+    await waitFor(() => {
+      expect(screen.getByLabelText(/^name/i)).toBeInTheDocument();
+    });
+    await user.type(screen.getByLabelText(/^name/i), 'New Project');
+    await user.type(screen.getByLabelText(/host path/i), '/host');
+    await user.type(screen.getByLabelText(/container path/i), '/container');
+    await user.type(screen.getByLabelText(/start command/i), 'npm start');
+
+    // Submit
+    await user.click(screen.getByRole('button', { name: 'Add project' }));
+
+    // Wait for drawer to close (onSaved triggers projects reload)
+    await waitFor(() => {
+      expect(mockListProjects).toHaveBeenCalledTimes(2); // initial + after save
+    });
+  });
 
   it('does not display environment variable values in the registry page', async () => {
     mockListProjects.mockResolvedValue([
