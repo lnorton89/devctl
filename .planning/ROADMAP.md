@@ -12,11 +12,11 @@
 
 **UI hint:** yes
 
-**Plans:** 1/7 plans executed
+**Plans:** 2/7 plans executed
 
 Plans:
 - [x] 01-01-PLAN.md - Create package, TypeScript, Vite, Vitest, and data-directory toolchain foundation.
-- [ ] 01-02-PLAN.md - Add shared project schema contract and validation tests.
+- [x] 01-02-PLAN.md - Add shared project schema contract and validation tests.
 - [ ] 01-03-PLAN.md - Add minimal React and Express app shell.
 - [ ] 01-04-PLAN.md - Build YAML repository and Express registry CRUD API.
 - [ ] 01-05-PLAN.md - Build Material UI registry page state flow and display surfaces.
