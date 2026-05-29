@@ -17,8 +17,8 @@ Phase 1: Project Registry Foundation
 
 ## Status
 
-Ready for phase discussion or planning.
+Phase 1 context gathered. Ready for phase planning.
 
 ## Next Action
 
-Run `$gsd-discuss-phase 1` to gather implementation context, or `$gsd-ui-phase 1` first because Phase 1 includes UI.
+Run `$gsd-plan-phase 1` to plan the Project Registry Foundation implementation.
