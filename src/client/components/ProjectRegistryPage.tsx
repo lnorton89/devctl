@@ -29,6 +29,7 @@ import { listProjects } from '../api/projectsApi.js';
 import ProjectTable from './ProjectTable';
 import ProjectMobileList from './ProjectMobileList';
 import ProjectFormDrawer from './ProjectFormDrawer';
+import DeleteProjectDialog from './DeleteProjectDialog';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -233,7 +234,18 @@ export default function ProjectRegistryPage(props: ProjectRegistryPageProps) {
         />
       )}
 
-      {/* Delete confirmation dialog (wired in Task 2) */}
+      {/* Delete confirmation dialog */}
+      {deleteProject && (
+        <DeleteProjectDialog
+          open
+          project={deleteProject}
+          onClose={handleDeleteClose}
+          onDeleted={() => {
+            setDeleteProject(undefined);
+            loadProjects();
+          }}
+        />
+      )}
     </Box>
   );
 }

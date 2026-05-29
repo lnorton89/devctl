@@ -480,7 +480,6 @@ export default function ProjectFormDrawer({
               <Switch
                 checked={form.autostart}
                 onChange={(e) => handleChange('autostart', e.target.checked)}
-                inputProps={{ 'aria-label': 'Autostart project' }}
               />
             }
             label="Autostart project on devctl boot"
