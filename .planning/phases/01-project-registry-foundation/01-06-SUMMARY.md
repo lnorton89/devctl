@@ -149,7 +149,7 @@ None — no new network endpoints, auth paths, file access patterns, or schema c
 
 None — both components are fully wired with mockable API calls and no placeholder content.
 
-## Self-Check: PASSED
+## Self-Check: PASSED ✅
 
 - [x] `src/client/components/ProjectFormDrawer.tsx` — exists
 - [x] `src/client/components/DeleteProjectDialog.tsx` — exists
