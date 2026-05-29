@@ -478,6 +478,71 @@ describe('ProjectRegistryPage', () => {
     });
   });
 
+  // ===================================================================
+  // Delete dialog integration (Plan 06 Task 2)
+  // ===================================================================
+
+  it('opens delete confirmation dialog when Delete project is clicked', async () => {
+    const project = sampleProject({ id: 'p1', name: 'To Delete' });
+    mockListProjects.mockResolvedValue([project]);
+    render(<ProjectRegistryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('To Delete')).toBeInTheDocument();
+    });
+
+    const user = userEvent.setup();
+    await user.click(screen.getByRole('button', { name: 'Delete project' }));
+
+    // Dialog should show with confirmation copy
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          /Delete To Delete\? This removes the project from devctl/i,
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('removes project from registry after successful delete', async () => {
+    // Use custom implementation tracking call count to avoid mockResolvedValueOnce
+    // queue issues with vi.clearAllMocks.
+    let callCount = 0;
+    mockListProjects.mockImplementation(() => {
+      callCount++;
+      if (callCount === 1) {
+        return Promise.resolve([sampleProject({ id: 'p1', name: 'Delete Me' })]);
+      }
+      return Promise.resolve([]);
+    });
+    mockDeleteProject.mockResolvedValue(undefined);
+
+    const user = userEvent.setup();
+    render(<ProjectRegistryPage />);
+
+    // Wait for project to display (first call)
+    await waitFor(() => {
+      expect(screen.getByText('Delete Me')).toBeInTheDocument();
+    });
+
+    // Open delete dialog via row icon
+    const rowDeleteButtons = screen.getAllByRole('button', { name: 'Delete project' });
+    await user.click(rowDeleteButtons[0]);
+
+    // Confirm deletion via dialog button
+    const confirmButton = await screen.findByRole('button', { name: 'Delete project' });
+    await user.click(confirmButton);
+
+    // After deletion, project should be removed and empty state shown
+    await waitFor(() => {
+      expect(
+        screen.getByText('No projects registered'),
+      ).toBeInTheDocument();
+    });
+    // listProjects should have been called twice (initial + after save)
+    expect(callCount).toBe(2);
+  });
+
   it('does not display environment variable values in the registry page', async () => {
     mockListProjects.mockResolvedValue([
       sampleProject({
