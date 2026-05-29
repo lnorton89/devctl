@@ -7,10 +7,10 @@
 
 ### Project Registry
 
-- [ ] **REG-01**: User can create a project with name, local path, start command, and optional app URL.
-- [ ] **REG-02**: User can edit and delete registered projects.
-- [ ] **REG-03**: User can configure per-project port, health check URL, environment variables, and autostart preference.
-- [ ] **REG-04**: User project configuration persists across devctl container restarts.
+- [x] **REG-01**: User can create a project with name, local path, start command, and optional app URL.
+- [x] **REG-02**: User can edit and delete registered projects.
+- [x] **REG-03**: User can configure per-project port, health check URL, environment variables, and autostart preference.
+- [x] **REG-04**: User project configuration persists across devctl container restarts.
 
 ### Lifecycle Control
 
@@ -78,10 +78,10 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| REG-01 | Phase 1 | Pending |
-| REG-02 | Phase 1 | Pending |
-| REG-03 | Phase 1 | Pending |
-| REG-04 | Phase 1 | Pending |
+| REG-01 | Phase 1 | Complete |
+| REG-02 | Phase 1 | Complete |
+| REG-03 | Phase 1 | Complete |
+| REG-04 | Phase 1 | Complete |
 | LIFE-01 | Phase 2 | Pending |
 | LIFE-02 | Phase 2 | Pending |
 | LIFE-03 | Phase 2 | Pending |
