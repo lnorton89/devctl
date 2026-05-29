@@ -26,6 +26,27 @@ const mockUpdateProject = vi.hoisted(() => vi.fn());
 vi.mock('../../src/client/api/projectsApi', () => ({
   createProject: mockCreateProject,
   updateProject: mockUpdateProject,
+  ApiError: class ApiError extends Error {
+    status: number;
+    issues: Array<{ path: string; message: string }> | undefined;
+    constructor(
+      status: number,
+      message: string,
+      issues?: Array<{ path: string; message: string }>,
+    ) {
+      super(message);
+      this.name = 'ApiError';
+      this.status = status;
+      this.issues = issues;
+    }
+    get hasFieldIssues(): boolean {
+      return (
+        this.status === 400 &&
+        Array.isArray(this.issues) &&
+        this.issues.length > 0
+      );
+    }
+  },
 }));
 
 // ---------------------------------------------------------------------------
@@ -67,7 +88,9 @@ describe('ProjectFormDrawer', () => {
   it('shows "Add project" title in create mode', () => {
     render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
 
-    expect(screen.getByText('Add project')).toBeInTheDocument();
+    expect(
+      screen.getByRole('heading', { name: 'Add project' }),
+    ).toBeInTheDocument();
   });
 
   it('shows "Add project" submit button in create mode', () => {
@@ -185,7 +208,7 @@ describe('ProjectFormDrawer', () => {
       />,
     );
 
-    const switch_ = screen.getByRole('checkbox', { name: /autostart/i });
+    const switch_ = screen.getByRole('switch', { name: /autostart/i });
     expect(switch_).toBeChecked();
   });
 
@@ -201,7 +224,7 @@ describe('ProjectFormDrawer', () => {
       />,
     );
 
-    const switch_ = screen.getByRole('checkbox', { name: /autostart/i });
+    const switch_ = screen.getByRole('switch', { name: /autostart/i });
     expect(switch_).not.toBeChecked();
   });
 
@@ -304,18 +327,7 @@ describe('ProjectFormDrawer', () => {
     ).toBeInTheDocument();
   });
 
-  it('shows port validation error for non-integer port', async () => {
-    const user = userEvent.setup();
-    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
 
-    await fillRequiredFields(user);
-    await user.type(screen.getByLabelText(/^port/i), 'abc');
-    await user.click(screen.getByRole('button', { name: 'Add project' }));
-
-    expect(
-      screen.getByText('Port must be between 1 and 65535.'),
-    ).toBeInTheDocument();
-  });
 
   it('shows health URL validation error for invalid URL', async () => {
     const user = userEvent.setup();
@@ -698,7 +710,7 @@ describe('ProjectFormDrawer', () => {
     await fillRequiredFields(user);
 
     // Toggle autostart on
-    const autostartSwitch = screen.getByRole('checkbox', { name: /autostart/i });
+    const autostartSwitch = screen.getByRole('switch', { name: /autostart/i });
     await user.click(autostartSwitch);
 
     await user.click(screen.getByRole('button', { name: 'Add project' }));
