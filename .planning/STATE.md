@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-last_updated: "2026-05-29T23:15:25.876Z"
+last_updated: "2026-05-29T23:23:44.963Z"
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 13
-  completed_plans: 8
+  completed_plans: 9
   percent: 20
 ---
 
@@ -18,9 +18,9 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-05-29)
 
-**Last session:** 2026-05-29T23:15:05.581Z
+**Last session:** 2026-05-29T23:23:44.950Z
 
-**Stopped at:** Phase 2 planned and verified
+**Stopped at:** Completed 02-02-PLAN.md
 
 **Core value:** devctl reliably brings the right local dev servers up and down with clear status, without requiring manual terminal juggling after boot.
 **Current focus:** Phase 02 — lifecycle-process-control
@@ -77,6 +77,9 @@ Execute Phase 2 (Lifecycle Process Control - LIFE-01 through LIFE-04) with `$gsd
 - [Phase 02]: Lifecycle and script DTOs are exported from src/shared/lifecycleSchema.ts so client and server code share one contract source. — Prevents client/server contract drift for downstream lifecycle API and UI plans.
 - [Phase 02]: Package script discovery reads only the resolved package.json file and returns only string-valued scripts. — Constrains filesystem read scope and avoids executable ambiguity from non-string script values.
 - [Phase 02]: Missing and malformed package.json files use typed errors for downstream actionable API responses. — Supports LIFE-04 error reporting without string-matching generic errors.
+- [Phase 02]: ProcessManager keeps lifecycle state in a private in-memory Map so server restart re-evaluates projects as stopped. — Satisfies D-09 without persisting runtime state.
+- [Phase 02]: Run history remains attached to a project across subsequent starts and is capped at five completed runs. — Preserves D-15 behavior while bounding memory.
+- [Phase 02]: Stop behavior uses process.kill(-pid, signal) on Unix and argument-array taskkill calls on Windows. — Implements D-11 without shell-interpolated taskkill text.
 
 ## Performance Metrics
 
@@ -84,3 +87,4 @@ Execute Phase 2 (Lifecycle Process Control - LIFE-01 through LIFE-04) with `$gsd
 |-------|------|----------|-------|
 | Phase 01 P07 | 8 min | 3 tasks | 3 files |
 | Phase 02 P01 | 5 min | 2 tasks | 6 files |
+| Phase 02 P02 | 5 min | 3 tasks | 3 files |

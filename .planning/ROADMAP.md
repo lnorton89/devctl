@@ -39,7 +39,7 @@ Plans:
 
 **UI hint:** yes
 
-**Plans:** 1/6 plans executed
+**Plans:** 2/6 plans executed
 Plans:
 **Wave 1**
 
@@ -47,7 +47,7 @@ Plans:
 
 **Wave 2** *(blocked on Wave 1 completion)*
 
-- [ ] 02-02-PLAN.md - Build the in-memory process manager with bounded logs and graceful stop behavior.
+- [x] 02-02-PLAN.md - Build the in-memory process manager with bounded logs and graceful stop behavior.
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
