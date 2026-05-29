@@ -206,6 +206,129 @@ describe('Lifecycle API', () => {
     });
   });
 
+  describe('remaining lifecycle endpoints', () => {
+    it('calls processManager.stop and returns state', async () => {
+      const project = await repository.createProject(validPayload(projectDir));
+      vi.mocked(processManager.stop).mockReturnValue(
+        status({ state: 'stopping', uptime: 3 }),
+      );
+
+      const app = createLifecycleTestApp(repository, processManager);
+      const res = await request(app).post(`/api/projects/${project.id}/stop`);
+
+      expect(res.status).toBe(200);
+      expect(processManager.stop).toHaveBeenCalledWith(project.id);
+      expect(res.body.state).toBe('stopping');
+      expect(res.body.uptime).toBe(3);
+    });
+
+    it('validates scriptName before calling processManager.restart', async () => {
+      createPackageJson(projectDir, { dev: 'vite --host 0.0.0.0' });
+      const project = await repository.createProject(validPayload(projectDir));
+      vi.mocked(processManager.restart).mockResolvedValue(
+        status({ state: 'starting' }),
+      );
+
+      const app = createLifecycleTestApp(repository, processManager);
+      const res = await request(app).post(`/api/projects/${project.id}/restart`);
+
+      expect(res.status).toBe(200);
+      expect(processManager.restart).toHaveBeenCalledWith(
+        project.id,
+        'dev',
+        projectDir,
+      );
+      expect(res.body.state).toBe('starting');
+    });
+
+    it('returns 400 and does not restart for stale scriptName', async () => {
+      createPackageJson(projectDir, { preview: 'vite preview' });
+      const project = await repository.createProject(validPayload(projectDir));
+
+      const app = createLifecycleTestApp(repository, processManager);
+      const res = await request(app).post(`/api/projects/${project.id}/restart`);
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe(
+        'Configured script "dev" was not found in package.json.',
+      );
+      expect(processManager.restart).not.toHaveBeenCalled();
+    });
+
+    it('returns status with uptime, currentRun, recentLogTail, and error', async () => {
+      const project = await repository.createProject(validPayload(projectDir));
+      const run = {
+        runId: 'run-1',
+        scriptName: 'dev',
+        startTime: '2026-05-29T23:00:00.000Z',
+        exitCode: null,
+        signalCode: null,
+        stdout: ['ready'],
+        stderr: [],
+        crashed: false,
+      };
+      vi.mocked(processManager.getStatus).mockReturnValue({
+        state: 'failed',
+        uptime: 42,
+        currentRun: run,
+        recentLogTail: ['ready', 'boom'],
+        error: 'Command failed.',
+      });
+
+      const app = createLifecycleTestApp(repository, processManager);
+      const res = await request(app).get(`/api/projects/${project.id}/status`);
+
+      expect(res.status).toBe(200);
+      expect(processManager.getStatus).toHaveBeenCalledWith(project.id);
+      expect(res.body).toEqual({
+        state: 'failed',
+        uptime: 42,
+        currentRun: run,
+        recentLogTail: ['ready', 'boom'],
+        error: 'Command failed.',
+      });
+    });
+
+    it('returns current run and run history from logs', async () => {
+      const project = await repository.createProject(validPayload(projectDir));
+      const currentRun = {
+        runId: 'run-current',
+        scriptName: 'dev',
+        startTime: '2026-05-29T23:05:00.000Z',
+        exitCode: null,
+        signalCode: null,
+        stdout: ['listening'],
+        stderr: [],
+        crashed: false,
+      };
+      const previousRun = {
+        runId: 'run-previous',
+        scriptName: 'dev',
+        startTime: '2026-05-29T23:00:00.000Z',
+        endTime: '2026-05-29T23:01:00.000Z',
+        exitCode: 0,
+        signalCode: null,
+        stdout: ['done'],
+        stderr: [],
+        crashed: false,
+      };
+      vi.mocked(processManager.getLogs).mockReturnValue({
+        currentRun,
+        history: [previousRun],
+      });
+
+      const app = createLifecycleTestApp(repository, processManager);
+      const res = await request(app).get(`/api/projects/${project.id}/logs`);
+
+      expect(res.status).toBe(200);
+      expect(processManager.getLogs).toHaveBeenCalledWith(project.id);
+      expect(res.body).toEqual({
+        currentRun,
+        history: [previousRun],
+      });
+    });
+  });
+
   describe('createApp lifecycle route wiring', () => {
     it('routes POST /api/projects/:id/start to the lifecycle router', async () => {
       createPackageJson(projectDir, { dev: 'vite' });
