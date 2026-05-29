@@ -1,0 +1,215 @@
+/**
+ * Component tests for ProjectRegistryPage.
+ *
+ * Covers: loading state, empty state, load error rendering,
+ * primary CTA presence, empty-state replacement after projects load,
+ * no lifecycle controls rendered.
+ *
+ * @module ProjectRegistryPage.test
+ */
+
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+
+import ProjectRegistryPage from '../../src/client/components/ProjectRegistryPage';
+import type { ProjectConfig } from '../../src/shared/projectSchema.js';
+
+// ---------------------------------------------------------------------------
+// Mocks
+// ---------------------------------------------------------------------------
+
+const mockListProjects = vi.hoisted(() => vi.fn());
+
+vi.mock('../../src/client/api/projectsApi', () => ({
+  listProjects: mockListProjects,
+}));
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const sampleProject = (overrides: Partial<ProjectConfig> = {}): ProjectConfig => ({
+  id: 'proj_001',
+  name: 'Test App',
+  hostPath: 'C:\\Users\\test\\app',
+  containerPath: '/workspace/app',
+  startCommand: 'npm run dev',
+  env: [],
+  autostart: false,
+  ...overrides,
+});
+
+// ---------------------------------------------------------------------------
+// Tests
+// ---------------------------------------------------------------------------
+
+describe('ProjectRegistryPage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  // ----- Loading state -----
+
+  it('shows a loading indicator on mount while fetching projects', () => {
+    // Keep the promise pending so loading stays visible
+    mockListProjects.mockReturnValue(new Promise<ProjectConfig[]>(() => {}));
+    render(<ProjectRegistryPage />);
+
+    expect(screen.getByRole('progressbar')).toBeInTheDocument();
+  });
+
+  // ----- Empty state -----
+
+  it('shows empty state when no projects are returned', async () => {
+    mockListProjects.mockResolvedValue([]);
+    render(<ProjectRegistryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('No projects registered')).toBeInTheDocument();
+    });
+
+    // Empty state copy
+    expect(
+      screen.getByText('Add a local app so devctl can manage its configuration.'),
+    ).toBeInTheDocument();
+  });
+
+  // ----- Project rendering -----
+
+  it('replaces empty state with project list after projects load', async () => {
+    mockListProjects.mockResolvedValue([
+      sampleProject({ id: 'p1', name: 'App One' }),
+      sampleProject({ id: 'p2', name: 'App Two' }),
+    ]);
+    render(<ProjectRegistryPage />);
+
+    // Wait for loading to finish
+    await waitFor(() => {
+      expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
+    });
+
+    // Empty state should NOT be visible
+    expect(
+      screen.queryByText('No projects registered'),
+    ).not.toBeInTheDocument();
+
+    // Projects should appear
+    expect(screen.getByText('App One')).toBeInTheDocument();
+    expect(screen.getByText('App Two')).toBeInTheDocument();
+  });
+
+  // ----- Load error state -----
+
+  it('shows error message when API call fails', async () => {
+    mockListProjects.mockRejectedValue(new Error('Registry unavailable'));
+    render(<ProjectRegistryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Registry unavailable')).toBeInTheDocument();
+    });
+  });
+
+  it('shows a retry button on load error', async () => {
+    mockListProjects.mockRejectedValue(new Error('Failed to fetch'));
+    render(<ProjectRegistryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /retry/i })).toBeInTheDocument();
+    });
+  });
+
+  it('retries loading when retry button is clicked', async () => {
+    // First call fails
+    mockListProjects.mockRejectedValueOnce(new Error('Network error'));
+    // Second call succeeds
+    mockListProjects.mockResolvedValueOnce([
+      sampleProject({ id: 'p1', name: 'Retried App' }),
+    ]);
+    render(<ProjectRegistryPage />);
+
+    // Wait for error state
+    await waitFor(() => {
+      expect(screen.getByText('Network error')).toBeInTheDocument();
+    });
+
+    // Click retry
+    const user = userEvent.setup();
+    const retryButton = screen.getByRole('button', { name: /retry/i });
+    await user.click(retryButton);
+
+    // Should call listProjects again and show the project
+    await waitFor(() => {
+      expect(screen.getByText('Retried App')).toBeInTheDocument();
+    });
+    expect(mockListProjects).toHaveBeenCalledTimes(2);
+  });
+
+  // ----- Primary CTA -----
+
+  it('renders an enabled primary "Add project" button', async () => {
+    mockListProjects.mockResolvedValue([]);
+    render(<ProjectRegistryPage />);
+
+    const addButton = await screen.findByRole('button', { name: /add project/i });
+    expect(addButton).toBeEnabled();
+    expect(addButton).toHaveTextContent('Add project');
+  });
+
+  // ----- Page title -----
+
+  it('renders the page title "Projects"', async () => {
+    mockListProjects.mockResolvedValue([]);
+    render(<ProjectRegistryPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole('heading', { name: /projects/i, level: 1 }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  // ----- No lifecycle controls (T-01-05-03) -----
+
+  it('does not show start, stop, restart, or status controls', async () => {
+    mockListProjects.mockResolvedValue([
+      sampleProject({ id: 'p1', name: 'No Lifecycle App' }),
+    ]);
+    render(<ProjectRegistryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('No Lifecycle App')).toBeInTheDocument();
+    });
+
+    // Verify absence of lifecycle-related controls
+    expect(
+      screen.queryByRole('button', { name: /start/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /stop/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole('button', { name: /restart/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/running/i),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/stopped/i),
+    ).not.toBeInTheDocument();
+  });
+
+  // ----- Callback wiring -----
+
+  it('calls onAddProject when Add project is clicked', async () => {
+    mockListProjects.mockResolvedValue([]);
+    const onAddProject = vi.fn();
+    render(<ProjectRegistryPage onAddProject={onAddProject} />);
+
+    const addButton = await screen.findByRole('button', { name: /add project/i });
+    const user = userEvent.setup();
+    await user.click(addButton);
+
+    expect(onAddProject).toHaveBeenCalledOnce();
+  });
+});
