@@ -77,6 +77,33 @@ describe('projectInputSchema — required fields', () => {
 // REG-01 / REG-03 — Optional fields
 // ---------------------------------------------------------------------------
 describe('projectInputSchema — optional fields', () => {
+  it('accepts scriptName when present', () => {
+    const result = projectInputSchema.safeParse({
+      name: 'App',
+      hostPath: '/host',
+      containerPath: '/ctr',
+      startCommand: 'npm run dev',
+      scriptName: 'dev',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.scriptName).toBe('dev');
+    }
+  });
+
+  it('still accepts existing Phase 1 payloads without scriptName', () => {
+    const result = projectInputSchema.safeParse({
+      name: 'Phase 1 App',
+      hostPath: '/host',
+      containerPath: '/ctr',
+      startCommand: 'npm start',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.scriptName).toBeUndefined();
+    }
+  });
+
   it('accepts appUrl when present and valid', () => {
     const result = projectInputSchema.safeParse({
       name: 'App',
