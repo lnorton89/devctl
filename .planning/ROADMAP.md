@@ -39,7 +39,7 @@ Plans:
 
 **UI hint:** yes
 
-**Plans:** 2/6 plans executed
+**Plans:** 3/6 plans executed
 Plans:
 **Wave 1**
 
@@ -51,7 +51,7 @@ Plans:
 
 **Wave 3** *(blocked on Wave 2 completion)*
 
-- [ ] 02-03-PLAN.md - Add lifecycle API routes, app wiring, and scriptName validation before execution.
+- [x] 02-03-PLAN.md - Add lifecycle API routes, app wiring, and scriptName validation before execution.
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
