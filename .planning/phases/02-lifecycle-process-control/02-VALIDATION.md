@@ -1,17 +1,16 @@
 ---
 phase: 2
 slug: lifecycle-process-control
-status: draft
-nyquist_compliant: false
-wave_0_complete: false
+status: ready
+nyquist_compliant: true
+wave_0_complete: true
 created: 2026-05-29
+revised: 2026-05-29
 ---
 
 # Phase 2 — Validation Strategy
 
-> Per-phase validation contract for feedback sampling during execution.
-
----
+Per-phase validation contract for feedback sampling during execution.
 
 ## Test Infrastructure
 
@@ -23,68 +22,63 @@ created: 2026-05-29
 | **Full suite command** | `npx vitest run --reporter=verbose` |
 | **Estimated runtime** | ~30 seconds |
 
----
-
 ## Sampling Rate
 
-- **After every task commit:** Run `npx vitest run --reporter=verbose --changed`
-- **After every plan wave:** Run `npx vitest run --reporter=verbose`
-- **Before `/gsd-verify-work`:** Full suite must be green
-- **Max feedback latency:** 30 seconds
+- **After every task commit:** Run the task-specific `npx vitest run ... --reporter=verbose` command declared in the PLAN.
+- **After every plan wave:** Run `npx vitest run --reporter=verbose`.
+- **Before `/gsd-verify-work`:** Run `npx vitest run --reporter=verbose` and `npx tsc --noEmit`.
+- **Max feedback latency:** 30 seconds for targeted test commands.
 
----
+## Nyquist Status
+
+All behavior-producing Phase 2 tasks now include explicit test-creation work and direct automated verification commands. There are no absent Wave 0 test-file references remaining in the plan set. The first task that needs a test file creates that test file before implementing the behavior.
 
 ## Per-Task Verification Map
 
-| Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists | Status |
-|---------|------|------|-------------|------------|-----------------|-----------|-------------------|-------------|--------|
-| 02-01-01 | 01 | 1 | LIFE-01 | T-02-01 / T-02-03 | Script name validated against parsed package.json keys, not free-text; path resolved before reading | unit | `npx vitest run tests/server/packageJsonParser.test.ts` | ❌ W0 | ⬜ pending |
-| 02-01-02 | 01 | 1 | LIFE-01 | T-02-02 | Path resolution before package.json read | unit | `npx vitest run tests/server/projectFormSchema.test.ts` | ❌ W0 | ⬜ pending |
-| 02-02-01 | 02 | 1 | LIFE-01 | T-02-03 | Command constructed from validated config (`npm run ${scriptName}`) | unit | `npx vitest run tests/server/processManager.test.ts` | ❌ W0 | ⬜ pending |
-| 02-02-02 | 02 | 1 | LIFE-02 | T-02-04 / T-02-05 | Process group kill via cross-platform pattern (SIGTERM→SIGKILL / taskkill) | unit | `npx vitest run tests/server/processManager.test.ts` | ❌ W0 | ⬜ pending |
-| 02-02-03 | 02 | 1 | LIFE-03 | T-02-06 | Restart = stop then start with state machine validation | unit | `npx vitest run tests/server/processManager.test.ts` | ❌ W0 | ⬜ pending |
-| 02-02-04 | 02 | 1 | LIFE-04 | T-02-03 | Error states: missing path, invalid script, process crash | unit | `npx vitest run tests/server/processManager.test.ts` | ❌ W0 | ⬜ pending |
-| 02-03-01 | 03 | 2 | LIFE-01 | T-02-03 | POST /start spawns process, returns state | integration | `npx vitest run tests/server/lifecycle.test.ts` | ❌ W0 | ⬜ pending |
-| 02-03-02 | 03 | 2 | LIFE-02 | T-02-04 | POST /stop terminates process | integration | `npx vitest run tests/server/lifecycle.test.ts` | ❌ W0 | ⬜ pending |
-| 02-03-03 | 03 | 2 | LIFE-03 | T-02-06 | POST /restart stops then starts | integration | `npx vitest run tests/server/lifecycle.test.ts` | ❌ W0 | ⬜ pending |
-| 02-03-04 | 03 | 2 | LIFE-04 | T-02-03 | POST /start returns error on missing path | integration | `npx vitest run tests/server/lifecycle.test.ts` | ❌ W0 | ⬜ pending |
-| 02-04-01 | 04 | 2 | LIFE-01, LIFE-02, LIFE-03 | — | Registry page shows lifecycle buttons | component | `npx vitest run tests/client/ProjectRegistryPage.test.tsx` | ❌ W0 | ⬜ pending |
-| 02-04-02 | 04 | 2 | LIFE-01 | — | Form shows directory picker + script dropdown | component | `npx vitest run tests/client/ProjectFormDrawer.test.tsx` | ❌ W0 | ⬜ pending |
-| 02-04-03 | 04 | 2 | OBS-03 | — | Log viewer dialog renders correctly | component | `npx vitest run tests/client/LogViewerDialog.test.tsx` | ❌ W0 | ⬜ pending |
+| Task ID | Plan | Wave | Requirement | Threat Ref | Secure Behavior | Test Type | Automated Command | File Exists After Task | Status |
+|---------|------|------|-------------|------------|-----------------|-----------|-------------------|------------------------|--------|
+| 02-01-01 | 01 | 1 | LIFE-01, LIFE-04 | T-02-01-01 | Shared DTOs and optional scriptName schema | unit | `npx vitest run tests/shared/projectSchema.test.ts tests/shared/lifecycleSchema.test.ts --reporter=verbose` | yes | planned |
+| 02-01-02 | 01 | 1 | LIFE-01, LIFE-04 | T-02-01-02 | Resolved package.json parsing with typed errors | unit | `npx vitest run tests/server/packageJsonParser.test.ts --reporter=verbose` | yes | planned |
+| 02-02-01 | 02 | 2 | LIFE-04 | T-02-02-03 | Bounded log buffer and truncation | unit | `npx vitest run tests/server/processManager.test.ts --reporter=verbose` | yes | planned |
+| 02-02-02 | 02 | 2 | LIFE-01, LIFE-03, LIFE-04 | T-02-02-01 | Spawn/state/log/history behavior without real user commands | unit | `npx vitest run tests/server/processManager.test.ts --reporter=verbose` | yes | planned |
+| 02-02-03 | 02 | 2 | LIFE-02 | T-02-02-04 | D-11 graceful-then-force stop on Windows and Unix | unit | `npx vitest run tests/server/processManager.test.ts --reporter=verbose` | yes | planned |
+| 02-03-01 | 03 | 3 | LIFE-01, LIFE-04 | T-02-03-01 | Start validates scriptName against package.json scripts | integration | `npx vitest run tests/server/lifecycle.test.ts --reporter=verbose` | yes | planned |
+| 02-03-02 | 03 | 3 | LIFE-01, LIFE-04 | T-02-03-04 | App mounts lifecycle routes before CRUD | integration | `npx vitest run tests/server/lifecycle.test.ts tests/server/projects.test.ts --reporter=verbose` | yes | planned |
+| 02-03-03 | 03 | 3 | LIFE-02, LIFE-03, LIFE-04 | T-02-03-01 | Stop/restart/status/logs route coverage | integration | `npx vitest run tests/server/lifecycle.test.ts --reporter=verbose` | yes | planned |
+| 02-04-01 | 04 | 4 | LIFE-01, LIFE-02, LIFE-03, LIFE-04 | T-02-04-02 | Client lifecycle API uses shared DTOs | component | `npx vitest run tests/client/ProjectRegistryPage.test.tsx --reporter=verbose` | yes | planned |
+| 02-04-02 | 04 | 4 | LIFE-01, LIFE-02, LIFE-03 | T-02-04-02 | Status chips and legal lifecycle controls | component | `npx vitest run tests/client/ProjectRegistryPage.test.tsx --reporter=verbose` | yes | planned |
+| 02-04-03 | 04 | 4 | LIFE-01, LIFE-02, LIFE-03, LIFE-04 | T-02-04-02 | Per-project polling and lifecycle errors | component | `npx vitest run tests/client/ProjectRegistryPage.test.tsx --reporter=verbose` | yes | planned |
+| 02-05-01 | 05 | 4 | LIFE-01, LIFE-04 | T-02-05-01 | Directory picker and script dropdown | component | `npx vitest run tests/client/ProjectFormDrawer.test.tsx --reporter=verbose` | yes | planned |
+| 02-05-02 | 05 | 4 | LIFE-01 | T-02-05-01 | Derived startCommand and stored scriptName | component | `npx vitest run tests/client/ProjectFormDrawer.test.tsx --reporter=verbose` | yes | planned |
+| 02-05-03 | 05 | 4 | LIFE-04 | T-02-05-02 | Package parse and missing-path errors displayed | component | `npx vitest run tests/client/ProjectFormDrawer.test.tsx --reporter=verbose` | yes | planned |
+| 02-06-01 | 06 | 5 | LIFE-04 | T-02-06-02 | Log viewer renders bounded log data safely | component | `npx vitest run tests/client/LogViewerDialog.test.tsx --reporter=verbose` | yes | planned |
+| 02-06-02 | 06 | 5 | LIFE-04 | T-02-06-01 | Registry opens per-project log viewer | component | `npx vitest run tests/client/ProjectRegistryPage.test.tsx tests/client/LogViewerDialog.test.tsx --reporter=verbose` | yes | planned |
 
-*Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
+## Required Test Files Created By Plans
 
----
+- `tests/shared/lifecycleSchema.test.ts` — Plan 01
+- `tests/server/packageJsonParser.test.ts` — Plan 01
+- `tests/server/processManager.test.ts` — Plan 02
+- `tests/server/lifecycle.test.ts` — Plan 03
+- `tests/client/ProjectRegistryPage.test.tsx` — Plan 04 and Plan 06 updates
+- `tests/client/ProjectFormDrawer.test.tsx` — Plan 05 updates
+- `tests/client/LogViewerDialog.test.tsx` — Plan 06
 
-## Wave 0 Requirements
-
-- [ ] `tests/server/packageJsonParser.test.ts` — unit tests for package.json parsing (valid, missing, malformed, empty scripts)
-- [ ] `tests/server/projectFormSchema.test.ts` — unit tests for updated schema (directory path, scriptName)
-- [ ] `tests/server/processManager.test.ts` — unit tests for process manager (spawn, kill, state machine, ring buffer)
-- [ ] `tests/server/lifecycle.test.ts` — integration tests for lifecycle endpoints (start, stop, restart, errors)
-- [ ] `tests/client/ProjectFormDrawer.test.tsx` — extend existing for directory picker + script dropdown
-- [ ] `tests/client/ProjectRegistryPage.test.tsx` — extend for lifecycle action buttons + status chips
-- [ ] `tests/client/LogViewerDialog.test.tsx` — component tests for log viewer dialog
-
----
-
-## Manual-Only Verifications
+## Manual Verifications
 
 | Behavior | Requirement | Why Manual | Test Instructions |
 |----------|-------------|------------|-------------------|
-| Process group kill on Windows | LIFE-02 | Cannot mock OS-level process groups in CI | Run manually: start a project, verify taskkill /T kills the npm process tree |
-| Browse button picks directory | LIFE-01 | File input requires browser interaction | Run in browser: click Browse, select a folder with package.json, verify scripts load |
-| Real package.json parsing from disk | LIFE-01 | Unit tests mock fs; real path behavior | Open a project with a real package.json, verify scripts dropdown populates |
-
----
+| Real OS process group kill on Windows | LIFE-02 | Unit tests mock `taskkill`; real descendant-process behavior is OS-level | Start a sample project, stop it, verify no child `npm` or dev-server process remains. |
+| Browse button directory picker | LIFE-01 | Browser directory picker behavior varies by browser | In the browser, click Browse, select a folder with package.json, confirm scripts load or manually enter the path if absolute path is unavailable. |
+| Real package.json parsing from disk | LIFE-01 | Unit tests use temp fixtures; user path behavior should be sampled once | Enter a real local project path and confirm script dropdown populates. |
 
 ## Validation Sign-Off
 
-- [ ] All tasks have `<automated>` verify or Wave 0 dependencies
-- [ ] Sampling continuity: no 3 consecutive tasks without automated verify
-- [ ] Wave 0 covers all MISSING references
-- [ ] No watch-mode flags
-- [ ] Feedback latency < 30s
-- [ ] `nyquist_compliant: true` set in frontmatter
+- [x] All tasks have `<automated>` verification.
+- [x] Test-creation tasks are explicit in the relevant PLAN files.
+- [x] No verification commands pipe output through filtering commands.
+- [x] No watch-mode flags.
+- [x] Feedback latency target is under 30 seconds for targeted commands.
+- [x] `nyquist_compliant: true` set in frontmatter.
 
-**Approval:** pending
+**Approval:** ready for execution

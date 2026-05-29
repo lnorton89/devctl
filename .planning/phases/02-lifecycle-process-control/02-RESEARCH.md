@@ -195,7 +195,6 @@ src/
 │   │       POST /api/projects/parse-scripts  (or GET /api/projects/:id/scripts)
 │   ├── process/
 │   │   ├── processManager.ts        ← NEW: process registry + lifecycle logic
-│   │   ├── processTypes.ts          ← NEW: state enums, state machine, types
 │   │   └── packageJsonParser.ts     ← NEW: read & parse package.json scripts
 │   └── registry/
 │       ├── registryRepository.ts    ← Unchanged
@@ -229,7 +228,7 @@ tests/
 **Source:** Derived from Node.js `child_process` [official docs](https://nodejs.org/docs/latest-v26.x/api/child_process.html) [VERIFIED], cross-platform kill pattern from Gemini CLI [CITED: fossies.org/linux/gemini-cli/packages/core/src/utils/process-utils.ts]
 
 ```typescript
-// src/server/process/processTypes.ts
+// src/shared/lifecycleSchema.ts
 export type ProcessState =
   | 'stopped'
   | 'starting'
@@ -265,7 +264,7 @@ import { spawn, execSync } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createRingBuffer } from './ringBuffer.js';
-import type { ProcessState, ProcessStatus, RunRecord } from './processTypes.js';
+import type { ProcessState, ProcessStatus, RunRecord } from '../../shared/lifecycleSchema.js';
 
 const RING_BUFFER_SIZE = 1000;  // Claude's discretion — 1000 lines per run
 const RUN_HISTORY_MAX = 5;      // Keep last 5 runs per project
@@ -868,17 +867,17 @@ export async function parseScripts(dirPath: string): Promise<PackageScripts> {
 
 ---
 
-## Open Questions
+## Open Questions (RESOLVED)
 
-1. **Browse button implementation**
+1. **Browse button implementation — RESOLVED**
    - What we know: D-01 says "text input + browse". Claude's discretion on implementation.
    - What's unclear: The standard HTML `<input type="file" webkitdirectory>` API works but is limited — it only allows directory selection, not path entry. A text input + the directory picker button is the standard pattern. Electron-style native dialogs are not available in a browser-only context.
-   - Recommendation: Use a text `TextField` for manual path entry plus a `<input type="file" webkitdirectory>` hidden behind a "Browse" button. When the user selects a directory via the file input, populate the text field with the selected path. This works in all modern browsers without Electron.
+   - Resolution: Use a text `TextField` for manual path entry plus a hidden `<input type="file" webkitdirectory>` behind a Material UI Browse button. The text field remains authoritative because browser directory pickers may not expose an absolute path consistently. This implements D-01 without requiring Electron or native dialogs.
 
-2. **Start command derivation**
+2. **Start command derivation — RESOLVED**
    - What we know: The selected script name should produce `npm run <script>` as the startCommand.
    - What's unclear: Should the derived command be stored in `startCommand` at creation time, or computed at run time from `scriptName`?
-   - Recommendation: Store as `startCommand` at creation time (`npm run ${scriptName}`). Keep `scriptName` as a separate field for future use (regeneration, UI display). This way the execution path is always `cwd + startCommand` regardless of the creation method.
+   - Resolution: Store `startCommand` at creation/edit time as `npm run ${scriptName}` and also store `scriptName` as a separate field. Start/restart routes must validate the stored `scriptName` against the current `package.json` scripts before calling the process manager, then execute using the validated script name.
 
 ---
 

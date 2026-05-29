@@ -15,6 +15,7 @@
 **Plans:** 7/7 plans complete
 
 Plans:
+
 - [x] 01-01-PLAN.md - Create package, TypeScript, Vite, Vitest, and data-directory toolchain foundation.
 - [x] 01-02-PLAN.md - Add shared project schema contract and validation tests.
 - [x] 01-03-PLAN.md - Add minimal React and Express app shell.
@@ -24,6 +25,7 @@ Plans:
 - [x] 01-07-PLAN.md - Add integration verification, README, and Phase 1 evidence record.
 
 **Success criteria:**
+
 1. User can create, edit, delete, and list projects.
 2. Project records include path, command, port, health URL, environment variables, URL, and autostart flag.
 3. Project configuration survives container or server restart.
@@ -37,7 +39,31 @@ Plans:
 
 **UI hint:** yes
 
+**Plans:** 6 plans
+Plans:
+**Wave 1**
+
+- [ ] 02-01-PLAN.md - Add shared lifecycle DTOs, scriptName schema support, and package.json script parsing.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 02-02-PLAN.md - Build the in-memory process manager with bounded logs and graceful stop behavior.
+
+**Wave 3** *(blocked on Wave 2 completion)*
+
+- [ ] 02-03-PLAN.md - Add lifecycle API routes, app wiring, and scriptName validation before execution.
+
+**Wave 4** *(blocked on Wave 3 completion)*
+
+- [ ] 02-04-PLAN.md - Wire lifecycle controls, status chips, polling, and errors into the registry UI.
+- [ ] 02-05-PLAN.md - Rebuild the project form around directory selection and one npm script.
+
+**Wave 5** *(blocked on Wave 4 completion)*
+
+- [ ] 02-06-PLAN.md - Add the per-project log viewer and run history UI.
+
 **Success criteria:**
+
 1. User can start a project and the configured command runs in the configured working directory.
 2. User can stop and restart managed projects.
 3. Failed commands surface actionable errors.
@@ -52,6 +78,7 @@ Plans:
 **UI hint:** yes
 
 **Success criteria:**
+
 1. Dashboard shows every project with status, port or health state, and primary controls.
 2. User can open recent logs for a project.
 3. Occupied ports and unhealthy checks are visible in the UI.
@@ -67,6 +94,7 @@ Plans:
 **UI hint:** yes
 
 **Success criteria:**
+
 1. User can toggle autostart per project.
 2. devctl starts autostart-enabled projects on server boot.
 3. Autostart failures are captured in project status and logs.
@@ -81,6 +109,7 @@ Plans:
 **UI hint:** no
 
 **Success criteria:**
+
 1. Dockerfile builds the app.
 2. Docker compose example persists configuration and mounts host project directories.
 3. Boot launch instructions are documented for Docker startup policy or compose usage.
