@@ -13,6 +13,7 @@
 
 - Official Docker guidance for Node.js emphasizes containerizing with clear dependency install, runtime image hygiene, and an explicit app entrypoint.
 - Official Material UI docs support React usage with theming through `@mui/material` and Emotion styling packages.
+- Context7 MCP has been added to the Codex environment and should be used for current MUI examples when available.
 - Because devctl must manage host projects, the Docker design is more important than a normal web app container: it needs mounted project directories, a persistent data volume, and a deliberate host process model.
 
 ## Sources

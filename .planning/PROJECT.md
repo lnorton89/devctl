@@ -39,7 +39,7 @@ devctl reliably brings the right local dev servers up and down with clear status
 - The current pain is repetitive manual start and stop work across many local web app projects.
 - The app should reduce boot friction: the container launches on boot, then starts selected dev servers automatically.
 - The user explicitly wants Node.js and a modern Material UI design language.
-- Material UI MCP/tooling was expected, but no callable Material UI MCP appeared in this session. Official MUI docs should be used during implementation.
+- Material UI MCP/tooling is expected through Context7. The Codex environment has `context7` configured in `C:\Users\Lawrence\.codex\config.toml`; use it for current MUI, React, and Docker docs when available.
 - Docker is part of the runtime design, not an afterthought. The implementation needs to account for host path mounts, process permissions, and boot integration.
 - The product is an internal operational console, so the UI should be dense, clear, and work-focused rather than a marketing-style app.
 
@@ -61,6 +61,7 @@ devctl reliably brings the right local dev servers up and down with clear status
 | Run as a boot-launched Docker container | User wants the controller available automatically after computer boot. | Pending |
 | Treat v1 as trusted single-user local software | Keeps security and auth scope practical for first release. | Pending |
 | Model projects as persisted lifecycle targets | A registry of apps, commands, ports, and autostart preferences is the core domain. | Pending |
+| Use Context7 MCP for library docs | Provides current docs for Material UI and related libraries inside Codex. | Pending |
 
 ## Evolution
 

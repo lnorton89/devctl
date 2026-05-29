@@ -16,6 +16,7 @@ Read these before planning or implementing:
 - Keep changes scoped to the active roadmap phase.
 - Prefer TypeScript for Node.js and React code.
 - Use Material UI for frontend components, theming, icons, layout primitives, and accessible controls.
+- Use the `context7` MCP server for current Material UI, React, Vite, Docker, or related library documentation when its tools are available.
 - Design the app as an operational dashboard: dense, clear, responsive, and action-oriented.
 - Treat command execution and Docker host access as security-sensitive.
 - Verify lifecycle behavior with real commands or controlled sample projects when possible.
