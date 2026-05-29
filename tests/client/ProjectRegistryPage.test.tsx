@@ -212,4 +212,190 @@ describe('ProjectRegistryPage', () => {
 
     expect(onAddProject).toHaveBeenCalledOnce();
   });
+
+  // ===================================================================
+  // Task 2 — ProjectTable / ProjectMobileList rendering
+  // ===================================================================
+
+  describe('desktop table (ProjectTable)', () => {
+    it('renders table header columns', async () => {
+      mockListProjects.mockResolvedValue([
+        sampleProject({ id: 'p1', name: 'Table App' }),
+      ]);
+      render(<ProjectRegistryPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Table App')).toBeInTheDocument();
+      });
+
+      // Column headers
+      expect(screen.getByText('Project')).toBeInTheDocument();
+      expect(screen.getByText('Host path')).toBeInTheDocument();
+      expect(screen.getByText('Container path')).toBeInTheDocument();
+      expect(screen.getByText('Command')).toBeInTheDocument();
+      expect(screen.getByText('Port')).toBeInTheDocument();
+      expect(screen.getByText('Health URL')).toBeInTheDocument();
+      expect(screen.getByText('Autostart')).toBeInTheDocument();
+      expect(screen.getByText('Actions')).toBeInTheDocument();
+    });
+
+    it('renders project data in table cells', async () => {
+      mockListProjects.mockResolvedValue([
+        sampleProject({
+          id: 'p1',
+          name: 'My App',
+          hostPath: '/home/user/app',
+          containerPath: '/workspace/app',
+          startCommand: 'npm run dev',
+          port: 3000,
+        }),
+      ]);
+      render(<ProjectRegistryPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('My App')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('/home/user/app')).toBeInTheDocument();
+      expect(screen.getByText('/workspace/app')).toBeInTheDocument();
+      expect(screen.getByText('npm run dev')).toBeInTheDocument();
+      expect(screen.getByText('3000')).toBeInTheDocument();
+    });
+
+    it('renders edit button with correct aria-label', async () => {
+      mockListProjects.mockResolvedValue([
+        sampleProject({ id: 'p1', name: 'Edit Test' }),
+      ]);
+      render(<ProjectRegistryPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Edit Test')).toBeInTheDocument();
+      });
+
+      const editButton = screen.getByRole('button', { name: 'Edit project' });
+      expect(editButton).toBeInTheDocument();
+    });
+
+    it('renders delete button with correct aria-label', async () => {
+      mockListProjects.mockResolvedValue([
+        sampleProject({ id: 'p1', name: 'Delete Test' }),
+      ]);
+      render(<ProjectRegistryPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Delete Test')).toBeInTheDocument();
+      });
+
+      const deleteButton = screen.getByRole('button', { name: 'Delete project' });
+      expect(deleteButton).toBeInTheDocument();
+    });
+
+    it('calls onEditProject when edit button is clicked', async () => {
+      const project = sampleProject({ id: 'p1', name: 'Edit Me' });
+      mockListProjects.mockResolvedValue([project]);
+      const onEditProject = vi.fn();
+      render(<ProjectRegistryPage onEditProject={onEditProject} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Edit Me')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: 'Edit project' }));
+
+      expect(onEditProject).toHaveBeenCalledOnce();
+      expect(onEditProject).toHaveBeenCalledWith(project);
+    });
+
+    it('calls onDeleteProject when delete button is clicked', async () => {
+      const project = sampleProject({ id: 'p1', name: 'Delete Me' });
+      mockListProjects.mockResolvedValue([project]);
+      const onDeleteProject = vi.fn();
+      render(<ProjectRegistryPage onDeleteProject={onDeleteProject} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Delete Me')).toBeInTheDocument();
+      });
+
+      const user = userEvent.setup();
+      await user.click(screen.getByRole('button', { name: 'Delete project' }));
+
+      expect(onDeleteProject).toHaveBeenCalledOnce();
+      expect(onDeleteProject).toHaveBeenCalledWith(project);
+    });
+
+    it('shows dash (—) for empty optional port and health URL', async () => {
+      // Project without port or healthUrl
+      mockListProjects.mockResolvedValue([
+        sampleProject({
+          id: 'p1',
+          name: 'Minimal',
+          port: undefined,
+          healthUrl: undefined,
+        }),
+      ]);
+      render(<ProjectRegistryPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Minimal')).toBeInTheDocument();
+      });
+
+      // Empty optional values render as em-dash
+      const dashes = screen.getAllByText('—');
+      expect(dashes.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('shows autostart chip for Off state', async () => {
+      mockListProjects.mockResolvedValue([
+        sampleProject({ id: 'p1', name: 'AutoOff', autostart: false }),
+      ]);
+      render(<ProjectRegistryPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('AutoOff')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('Off')).toBeInTheDocument();
+    });
+
+    it('shows autostart chip for On state', async () => {
+      mockListProjects.mockResolvedValue([
+        sampleProject({ id: 'p1', name: 'AutoOn', autostart: true }),
+      ]);
+      render(<ProjectRegistryPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('AutoOn')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('On')).toBeInTheDocument();
+    });
+  });
+
+  // ----- No env values in registry display (T-01-05-01) -----
+
+  it('does not display environment variable values in the registry page', async () => {
+    mockListProjects.mockResolvedValue([
+      sampleProject({
+        id: 'p1',
+        name: 'Env Test',
+        env: [
+          { key: 'NODE_ENV', value: 'production' },
+          { key: 'API_KEY', value: 'secret-123' },
+        ],
+      }),
+    ]);
+    render(<ProjectRegistryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Env Test')).toBeInTheDocument();
+    });
+
+    // Env values should NOT be visible
+    expect(screen.queryByText('production')).not.toBeInTheDocument();
+    expect(screen.queryByText('secret-123')).not.toBeInTheDocument();
+    // Keys also should not appear in table rows
+    expect(screen.queryByText('NODE_ENV')).not.toBeInTheDocument();
+    expect(screen.queryByText('API_KEY')).not.toBeInTheDocument();
+  });
 });

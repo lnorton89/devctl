@@ -19,11 +19,15 @@ import {
   Typography,
   Alert,
   CircularProgress,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 
 import type { ProjectConfig } from '../../shared/projectSchema.js';
 import { listProjects } from '../api/projectsApi.js';
+import ProjectTable from './ProjectTable';
+import ProjectMobileList from './ProjectMobileList';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,6 +70,9 @@ export default function ProjectRegistryPage(props: ProjectRegistryPageProps) {
   const [error, setError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'));
+
   // ----- Data fetching -----
 
   const loadProjects = useCallback(async () => {
@@ -91,6 +98,14 @@ export default function ProjectRegistryPage(props: ProjectRegistryPageProps) {
 
   const handleAddProject = () => {
     props.onAddProject?.();
+  };
+
+  const handleEditProject = (project: ProjectConfig) => {
+    props.onEditProject?.(project);
+  };
+
+  const handleDeleteProject = (project: ProjectConfig) => {
+    props.onDeleteProject?.(project);
   };
 
   // ----- Render -----
@@ -171,27 +186,21 @@ export default function ProjectRegistryPage(props: ProjectRegistryPageProps) {
         </Box>
       )}
 
-      {/* Project list — will be replaced with ProjectTable /
-          ProjectMobileList in Task 2 / Plan 01-05 */}
+      {/* Project display — desktop table or mobile list */}
       {!loading && !error && projects.length > 0 && (
-        <Box>
-          {projects.map((project) => (
-            <Box
-              key={project.id}
-              sx={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                py: 1,
-                px: 2,
-                borderBottom: '1px solid',
-                borderColor: 'divider',
-              }}
-            >
-              <Typography variant="body1">{project.name}</Typography>
-            </Box>
-          ))}
-        </Box>
+        isMobile ? (
+          <ProjectMobileList
+            projects={projects}
+            onEditProject={handleEditProject}
+            onDeleteProject={handleDeleteProject}
+          />
+        ) : (
+          <ProjectTable
+            projects={projects}
+            onEditProject={handleEditProject}
+            onDeleteProject={handleDeleteProject}
+          />
+        )
       )}
     </Box>
   );
