@@ -12,6 +12,14 @@
 
 **UI hint:** yes
 
+**Plans:** 4 plans
+
+Plans:
+- [ ] 01-01-PLAN.md - Scaffold TypeScript Node/Vite/React/MUI app shell and shared schema foundation.
+- [ ] 01-02-PLAN.md - Build YAML repository and Express registry CRUD API.
+- [ ] 01-03-PLAN.md - Build Material UI registry dashboard, form, table, and delete workflows.
+- [ ] 01-04-PLAN.md - Add integration verification, README, and Phase 1 evidence record.
+
 **Success criteria:**
 1. User can create, edit, delete, and list projects.
 2. Project records include path, command, port, health URL, environment variables, URL, and autostart flag.
