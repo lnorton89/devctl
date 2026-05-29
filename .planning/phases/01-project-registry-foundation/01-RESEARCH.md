@@ -446,22 +446,22 @@ root.render(
 | A5 | Atomic temp-file then rename writes are sufficient for Phase 1 durability. | YAML Registry Model | Cross-platform rename behavior may need extra handling under Docker/Windows mounts. |
 | A6 | Env key validation should use a conventional env-var regex. | YAML Registry Model | Some project-specific env names may be rejected if conventions differ. |
 
-## Open Questions
+## Open Questions (RESOLVED)
 
 1. **What exact registry file path should be the default?**
    - What we know: YAML persistence is locked, and Docker persistence is a v1 requirement. [VERIFIED: CONTEXT.md, REQUIREMENTS.md]
    - What's unclear: Whether config should live at `data/projects.yaml`, `/data/projects.yaml`, or a named app config directory. [ASSUMED]
-   - Recommendation: Use `DEVCTL_CONFIG_PATH` with a local development default and document it in code/tests. [ASSUMED]
+   - Resolution: Use `DEVCTL_CONFIG_PATH` when set, otherwise default to `data/projects.yaml` from the repository/app working directory. Later Docker work can mount the `data/` directory or set `DEVCTL_CONFIG_PATH` to a mounted path without changing the registry contract.
 
 2. **Should project IDs be user-visible?**
    - What we know: React lists need stable keys, and API delete/update routes need stable identifiers. [VERIFIED: Context7 /reactjs/react.dev] [ASSUMED]
    - What's unclear: Whether IDs should be exposed in YAML only or also shown in UI. [ASSUMED]
-   - Recommendation: Store IDs in YAML/API, hide them from the Phase 1 UI. [ASSUMED]
+   - Resolution: Store stable generated IDs in YAML and API responses for update/delete and React keys. Do not show IDs in the Phase 1 registry UI.
 
 3. **Should `.env` path be host-relative, container-relative, or either?**
    - What we know: Both host and container project paths are stored. [VERIFIED: CONTEXT.md]
    - What's unclear: Later execution may need the env file inside the container. [ASSUMED]
-   - Recommendation: Treat `.env` path as relative to `containerPath` unless absolute, and state helper text clearly if implemented. [ASSUMED]
+   - Resolution: Treat relative `.env` paths as relative to `containerPath`; allow absolute paths as entered. Phase 1 stores the path only and does not load or execute env files.
 
 ## Environment Availability
 
