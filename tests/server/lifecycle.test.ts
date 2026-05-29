@@ -1,7 +1,7 @@
 import express from 'express';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import request from 'supertest';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createLifecycleRouter } from '../../src/server/routes/lifecycle.js';
@@ -15,6 +15,7 @@ function tmpDir(): string {
 }
 
 function createPackageJson(dir: string, scripts: Record<string, string>): void {
+  mkdirSync(dir, { recursive: true });
   writeFileSync(
     join(dir, 'package.json'),
     JSON.stringify({ scripts }, null, 2),
