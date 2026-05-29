@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-last_updated: "2026-05-29T21:24:00.000Z"
+last_updated: "2026-05-29T21:41:00.000Z"
 progress:
   total_phases: 5
   completed_phases: 0
   total_plans: 7
-  completed_plans: 5
-  percent: 71
+  completed_plans: 6
+  percent: 86
 ---
 
 # State: devctl
@@ -18,9 +18,9 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-05-29)
 
-**Last session:** 2026-05-29 — Completed 01-05 (registry UI) — 12 min, 5 files created, 80 tests pass
+**Last session:** 2026-05-29 — Completed 01-06 (create/edit/delete workflows) — 14 min, 4 files created, 58 tests added (138 total)
 
-**Stopped at:** Completed 01-05-PLAN.md — Plans 01-01 through 01-05 done. Next: 01-06 (create/edit/delete workflows).
+**Stopped at:** Completed 01-06-PLAN.md — Plans 01-01 through 01-06 done. Next: 01-07 (integration verification and README).
 
 **Core value:** devctl reliably brings the right local dev servers up and down with clear status, without requiring manual terminal juggling after boot.
 **Current focus:** Phase 01 — project-registry-foundation
@@ -35,11 +35,11 @@ Phase 1: Project Registry Foundation
 
 ## Status
 
-Plans 01-01 (toolchain), 01-02 (shared schema), 01-03 (app shell), 01-04 (YAML registry API), and 01-05 (registry UI) complete. Registry page with typed fetch API client, responsive desktop table / mobile list, and 80 tests all passing.
+Plans 01-01 through 01-06 complete. Registry has full CRUD: toolchain, shared schema, app shell, YAML API, responsive registry page UI, and create/edit/delete form workflows. 138 tests all passing.
 
 ## Next Action
 
-Continue with Plan 01-06 to build create, edit, and delete registry form workflows.
+Continue with Plan 01-07 to add integration verification, README, and Phase 1 evidence record.
 
 ## Accumulated Context
 
@@ -61,3 +61,8 @@ Continue with Plan 01-06 to build create, edit, and delete registry form workflo
 - D-27: Monospace font stack: ui-monospace, "Cascadia Code", "Fira Code", "Consolas", monospace — platform-native monospace with developer-friendly fallbacks
 - D-28: Autostart uses Chip with success/filled for On and default/outlined for Off — compact visual distinction without inline switch complexity
 - D-29: Mobile list uses bordered cards with borderRadius: 1 and bgcolor: background.paper — distinct from table surface while maintaining visual hierarchy
+- D-30: ProjectFormDrawer uses MUI Drawer for contextual form panel; DeleteProjectDialog uses MUI Dialog for blocking modal confirmation — form editing is non-destructive and benefits from the drawer's side-panel UX, while delete is destructive and benefits from a blocking modal
+- D-31: Switch component in MUI 9 uses `slotProps={{ input: { ... } }}` instead of MUI 5's `inputProps` — required by MUI 9 slot API migration
+- D-32: Delete error handling uses structural checks (`error.code || error.message`) instead of `instanceof ApiError` — broader mock/test compatibility while maintaining identical runtime behavior
+- D-33: integration tests use `mockImplementation` with call-count tracking instead of `mockResolvedValueOnce` — avoids Vitest mock queue leakage where `clearAllMocks()` resets call history/results but not `mockResolvedValueOnce` queues
+- D-34: Dialog button detection after MUI Modal opens uses `findByRole` (singleton) instead of `getAllByRole` expecting ≥2 — Modal `aria-hidden` on the background container hides the row's delete button, so only the dialog's button is visible
