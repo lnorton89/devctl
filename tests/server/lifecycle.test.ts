@@ -4,6 +4,7 @@ import request from 'supertest';
 import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { createApp } from '../../src/server/app.js';
 import { createLifecycleRouter } from '../../src/server/routes/lifecycle.js';
 import { createRegistryRepository } from '../../src/server/registry/registryRepository.js';
 import type { RegistryRepository } from '../../src/server/registry/registryRepository.js';
@@ -202,6 +203,58 @@ describe('Lifecycle API', () => {
       expect(res.status).toBe(404);
       expect(res.body.message).toBe('Project not found: missing');
       expect(processManager.start).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createApp lifecycle route wiring', () => {
+    it('routes POST /api/projects/:id/start to the lifecycle router', async () => {
+      createPackageJson(projectDir, { dev: 'vite' });
+      const project = await repository.createProject(validPayload(projectDir));
+      const app = createApp({ registryRepository: repository, processManager });
+
+      const res = await request(app).post(`/api/projects/${project.id}/start`);
+
+      expect(res.status).toBe(200);
+      expect(processManager.start).toHaveBeenCalledWith(
+        project.id,
+        'dev',
+        projectDir,
+      );
+    });
+
+    it('routes GET /api/projects/:id/status to the lifecycle router', async () => {
+      const project = await repository.createProject(validPayload(projectDir));
+      const app = createApp({ registryRepository: repository, processManager });
+
+      const res = await request(app).get(`/api/projects/${project.id}/status`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.state).toBe('stopped');
+      expect(processManager.getStatus).toHaveBeenCalledWith(project.id);
+    });
+
+    it('routes GET /api/projects/:id/logs to the lifecycle router', async () => {
+      const project = await repository.createProject(validPayload(projectDir));
+      const app = createApp({ registryRepository: repository, processManager });
+
+      const res = await request(app).get(`/api/projects/${project.id}/logs`);
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ currentRun: null, history: [] });
+      expect(processManager.getLogs).toHaveBeenCalledWith(project.id);
+    });
+
+    it('keeps existing project CRUD routes working', async () => {
+      const app = createApp({ registryRepository: repository, processManager });
+
+      const createRes = await request(app)
+        .post('/api/projects')
+        .send(validPayload(projectDir));
+      const listRes = await request(app).get('/api/projects');
+
+      expect(createRes.status).toBe(201);
+      expect(listRes.status).toBe(200);
+      expect(listRes.body.projects).toHaveLength(1);
     });
   });
 });
