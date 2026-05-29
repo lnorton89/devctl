@@ -2,8 +2,8 @@
  * Project registry page — first screen of the devctl UI.
  *
  * Orchestrates project registry state: loading, load-error, empty,
- * and project display. Wires Add/Edit/Delete action hooks that
- * Plan 06 will complete with drawer/dialog surfaces.
+ * and project display. Manages create/edit form drawer and delete
+ * confirmation dialog state with Plan 06 components.
  *
  * Threat model T-01-05-03: No lifecycle execution controls rendered.
  * Threat model T-01-05-01: No environment variable values exposed in
@@ -28,6 +28,7 @@ import type { ProjectConfig } from '../../shared/projectSchema.js';
 import { listProjects } from '../api/projectsApi.js';
 import ProjectTable from './ProjectTable';
 import ProjectMobileList from './ProjectMobileList';
+import ProjectFormDrawer from './ProjectFormDrawer';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -36,19 +37,16 @@ import ProjectMobileList from './ProjectMobileList';
 export interface ProjectRegistryPageProps {
   /**
    * Callback when the user clicks "Add project".
-   * Plan 06 will wire this to the create form drawer.
    */
   onAddProject?: () => void;
 
   /**
    * Callback when the user clicks a row's edit action.
-   * Plan 06 will wire this to the edit form drawer.
    */
   onEditProject?: (project: ProjectConfig) => void;
 
   /**
    * Callback when the user clicks a row's delete action.
-   * Plan 06 will wire this to the delete confirmation dialog.
    */
   onDeleteProject?: (project: ProjectConfig) => void;
 }
@@ -94,18 +92,40 @@ export default function ProjectRegistryPage(props: ProjectRegistryPageProps) {
     loadProjects();
   }, [loadProjects]);
 
-  // ----- Action handlers (Plan 06 will wire real implementations) -----
+  // ----- Form drawer state (create/edit) -----
+
+  const [formProject, setFormProject] = useState<ProjectConfig | null | undefined>(undefined);
 
   const handleAddProject = () => {
     props.onAddProject?.();
+    setFormProject(null); // null = create mode
   };
 
   const handleEditProject = (project: ProjectConfig) => {
     props.onEditProject?.(project);
+    setFormProject(project);
   };
+
+  const handleFormClose = () => {
+    setFormProject(undefined);
+  };
+
+  const handleFormSaved = () => {
+    setFormProject(undefined);
+    loadProjects();
+  };
+
+  // ----- Delete dialog state (wired in Task 2) -----
+
+  const [deleteProject, setDeleteProject] = useState<ProjectConfig | undefined>(undefined);
 
   const handleDeleteProject = (project: ProjectConfig) => {
     props.onDeleteProject?.(project);
+    setDeleteProject(project);
+  };
+
+  const handleDeleteClose = () => {
+    setDeleteProject(undefined);
   };
 
   // ----- Render -----
@@ -202,6 +222,18 @@ export default function ProjectRegistryPage(props: ProjectRegistryPageProps) {
           />
         )
       )}
+
+      {/* Create/edit form drawer */}
+      {formProject !== undefined && (
+        <ProjectFormDrawer
+          open
+          project={formProject}
+          onClose={handleFormClose}
+          onSaved={handleFormSaved}
+        />
+      )}
+
+      {/* Delete confirmation dialog (wired in Task 2) */}
     </Box>
   );
 }
