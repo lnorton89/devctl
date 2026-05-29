@@ -1,0 +1,110 @@
+# Requirements: devctl
+
+**Defined:** 2026-05-29
+**Core Value:** devctl reliably brings the right local dev servers up and down with clear status, without requiring manual terminal juggling after boot.
+
+## v1 Requirements
+
+### Project Registry
+
+- [ ] **REG-01**: User can create a project with name, local path, start command, and optional app URL.
+- [ ] **REG-02**: User can edit and delete registered projects.
+- [ ] **REG-03**: User can configure per-project port, health check URL, environment variables, and autostart preference.
+- [ ] **REG-04**: User project configuration persists across devctl container restarts.
+
+### Lifecycle Control
+
+- [ ] **LIFE-01**: User can start a registered project's dev server from the UI.
+- [ ] **LIFE-02**: User can stop a running project from the UI.
+- [ ] **LIFE-03**: User can restart a running or failed project from the UI.
+- [ ] **LIFE-04**: User can see command failures and missing-path errors when lifecycle actions fail.
+
+### Status and Logs
+
+- [ ] **OBS-01**: User can see each project's current status: stopped, starting, running, unhealthy, stopping, or failed.
+- [ ] **OBS-02**: User can see whether a configured port or health URL is reachable.
+- [ ] **OBS-03**: User can view recent stdout and stderr logs for each managed project.
+- [ ] **OBS-04**: User can identify when a port is already occupied before or during startup.
+
+### Automation
+
+- [ ] **AUTO-01**: User can mark selected projects to start automatically when devctl starts.
+- [ ] **AUTO-02**: devctl starts autostart-enabled projects after the container launches.
+- [ ] **AUTO-03**: User can disable autostart for a project without deleting the project.
+
+### Docker Runtime
+
+- [ ] **DOCK-01**: User can run devctl from Docker with persistent configuration storage.
+- [ ] **DOCK-02**: User can mount host project directories into the container for command execution.
+- [ ] **DOCK-03**: User can configure devctl to launch on boot using Docker compose or an equivalent Docker startup policy.
+
+### User Interface
+
+- [ ] **UI-01**: User can manage projects from a Material UI dashboard optimized for scanning and repeated actions.
+- [ ] **UI-02**: User can distinguish lifecycle states through accessible labels, status chips, and icon controls.
+- [ ] **UI-03**: User can inspect and act on a project without navigating through a marketing or landing page.
+
+## v2 Requirements
+
+### Workflow Profiles
+
+- **PROF-01**: User can group projects into named startup profiles.
+- **PROF-02**: User can start or stop a full profile with one action.
+
+### Dependencies
+
+- **DEP-01**: User can define startup ordering between projects.
+- **DEP-02**: devctl can wait for one project to become healthy before starting a dependent project.
+
+### Scheduling
+
+- **SCH-01**: User can schedule start or stop windows for projects.
+
+### Resource Monitoring
+
+- **RES-01**: User can view CPU and memory usage for managed processes.
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Multi-user authentication | v1 is trusted single-user local software. |
+| Cloud deployment management | The project targets local development servers. |
+| Production process supervision | Existing tools already cover production process management. |
+| Remote host fleet management | v1 focuses on one workstation. |
+| Full terminal emulator | Logs and actions are enough for v1 lifecycle control. |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| REG-01 | Phase 1 | Pending |
+| REG-02 | Phase 1 | Pending |
+| REG-03 | Phase 1 | Pending |
+| REG-04 | Phase 1 | Pending |
+| LIFE-01 | Phase 2 | Pending |
+| LIFE-02 | Phase 2 | Pending |
+| LIFE-03 | Phase 2 | Pending |
+| LIFE-04 | Phase 2 | Pending |
+| OBS-01 | Phase 3 | Pending |
+| OBS-02 | Phase 3 | Pending |
+| OBS-03 | Phase 3 | Pending |
+| OBS-04 | Phase 3 | Pending |
+| AUTO-01 | Phase 4 | Pending |
+| AUTO-02 | Phase 4 | Pending |
+| AUTO-03 | Phase 4 | Pending |
+| DOCK-01 | Phase 5 | Pending |
+| DOCK-02 | Phase 5 | Pending |
+| DOCK-03 | Phase 5 | Pending |
+| UI-01 | Phase 3 | Pending |
+| UI-02 | Phase 3 | Pending |
+| UI-03 | Phase 3 | Pending |
+
+**Coverage:**
+- v1 requirements: 21 total
+- Mapped to phases: 21
+- Unmapped: 0
+
+---
+*Requirements defined: 2026-05-29*
+*Last updated: 2026-05-29 after initial definition*

@@ -1,12 +1,15 @@
 {
   "mode": "yolo",
+  "commit_docs": true,
   "parallelization": true,
   "workflow": {
     "research": true,
-    "plan_checker": true,
+    "plan_check": true,
     "verifier": true,
+    "nyquist_validation": true,
     "auto_advance": true,
     "skip_discuss": false
   },
-  "granularity": "coarse"
+  "granularity": "coarse",
+  "model_profile": "balanced"
 }
