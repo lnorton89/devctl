@@ -14,10 +14,10 @@
 
 ### Lifecycle Control
 
-- [ ] **LIFE-01**: User can start a registered project's dev server from the UI.
+- [x] **LIFE-01**: User can start a registered project's dev server from the UI.
 - [ ] **LIFE-02**: User can stop a running project from the UI.
 - [ ] **LIFE-03**: User can restart a running or failed project from the UI.
-- [ ] **LIFE-04**: User can see command failures and missing-path errors when lifecycle actions fail.
+- [x] **LIFE-04**: User can see command failures and missing-path errors when lifecycle actions fail.
 
 ### Status and Logs
 
@@ -82,10 +82,10 @@
 | REG-02 | Phase 1 | Complete |
 | REG-03 | Phase 1 | Complete |
 | REG-04 | Phase 1 | Complete |
-| LIFE-01 | Phase 2 | Pending |
+| LIFE-01 | Phase 2 | Complete |
 | LIFE-02 | Phase 2 | Pending |
 | LIFE-03 | Phase 2 | Pending |
-| LIFE-04 | Phase 2 | Pending |
+| LIFE-04 | Phase 2 | Complete |
 | OBS-01 | Phase 3 | Pending |
 | OBS-02 | Phase 3 | Pending |
 | OBS-03 | Phase 3 | Pending |

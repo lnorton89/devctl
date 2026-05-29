@@ -39,11 +39,11 @@ Plans:
 
 **UI hint:** yes
 
-**Plans:** 6 plans
+**Plans:** 1/6 plans executed
 Plans:
 **Wave 1**
 
-- [ ] 02-01-PLAN.md - Add shared lifecycle DTOs, scriptName schema support, and package.json script parsing.
+- [x] 02-01-PLAN.md - Add shared lifecycle DTOs, scriptName schema support, and package.json script parsing.
 
 **Wave 2** *(blocked on Wave 1 completion)*
 

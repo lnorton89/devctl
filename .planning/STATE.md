@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-last_updated: "2026-05-29T23:04:38.626Z"
+last_updated: "2026-05-29T23:15:25.876Z"
 progress:
   total_phases: 5
   completed_phases: 1
   total_plans: 13
-  completed_plans: 7
+  completed_plans: 8
   percent: 20
 ---
 
@@ -18,12 +18,12 @@ progress:
 
 See: .planning/PROJECT.md (updated 2026-05-29)
 
-**Last session:** 2026-05-29T22:21:34.367Z
+**Last session:** 2026-05-29T23:15:05.581Z
 
 **Stopped at:** Phase 2 planned and verified
 
 **Core value:** devctl reliably brings the right local dev servers up and down with clear status, without requiring manual terminal juggling after boot.
-**Current focus:** Phase 02 - lifecycle-process-control
+**Current focus:** Phase 02 — lifecycle-process-control
 
 ## Current Milestone
 
@@ -74,9 +74,13 @@ Execute Phase 2 (Lifecycle Process Control - LIFE-01 through LIFE-04) with `$gsd
 - [Phase 01]: Env values asserted in-memory only — no snapshots or printed output (T-01-07-02)
 - [Phase 01]: README explicitly states Phase 1 does not execute commands — stored config only (T-01-07-03)
 - [Phase 01]: Verification document covers D-01 through D-13, negative-scope checklist, and full build/test result
+- [Phase 02]: Lifecycle and script DTOs are exported from src/shared/lifecycleSchema.ts so client and server code share one contract source. — Prevents client/server contract drift for downstream lifecycle API and UI plans.
+- [Phase 02]: Package script discovery reads only the resolved package.json file and returns only string-valued scripts. — Constrains filesystem read scope and avoids executable ambiguity from non-string script values.
+- [Phase 02]: Missing and malformed package.json files use typed errors for downstream actionable API responses. — Supports LIFE-04 error reporting without string-matching generic errors.
 
 ## Performance Metrics
 
 | Phase | Plan | Duration | Notes |
 |-------|------|----------|-------|
 | Phase 01 P07 | 8 min | 3 tasks | 3 files |
+| Phase 02 P01 | 5 min | 2 tasks | 6 files |
