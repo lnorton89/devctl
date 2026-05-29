@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { describe, expect, it, vi, beforeEach } from 'vitest';
+import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
 import { createRingBuffer } from '../../src/server/process/ringBuffer.js';
 import { createProcessManager } from '../../src/server/process/processManager.js';
 
@@ -35,10 +35,25 @@ function flushTimers(): Promise<void> {
   });
 }
 
+const originalPlatform = process.platform;
+
+function setPlatform(platform: NodeJS.Platform): void {
+  Object.defineProperty(process, 'platform', {
+    value: platform,
+    configurable: true,
+  });
+}
+
 beforeEach(() => {
   vi.useRealTimers();
   childProcessMocks.spawn.mockReset();
   childProcessMocks.execFile.mockReset();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  setPlatform(originalPlatform);
 });
 
 describe('createRingBuffer', () => {
@@ -254,5 +269,112 @@ describe('createProcessManager lifecycle state machine', () => {
       'dev4',
       'dev5',
     ]);
+  });
+});
+
+describe('createProcessManager graceful stop behavior', () => {
+  it('sends SIGTERM to the negative process group id on Unix first', () => {
+    setPlatform('linux');
+    vi.useFakeTimers();
+    const kill = vi.spyOn(process, 'kill').mockImplementation(() => true);
+    const child = createMockChild(4321);
+    childProcessMocks.spawn.mockReturnValue(child);
+    const manager = createProcessManager();
+
+    manager.start('project-1', 'dev', '/workspace/app');
+    child.stdout.emit('data', Buffer.from('ready\n'));
+    manager.stop('project-1', 100);
+
+    expect(kill).toHaveBeenCalledWith(-4321, 'SIGTERM');
+  });
+
+  it('sends SIGKILL on Unix after timeout only if state is still stopping', async () => {
+    setPlatform('linux');
+    vi.useFakeTimers();
+    const kill = vi.spyOn(process, 'kill').mockImplementation(() => true);
+    const child = createMockChild(4322);
+    childProcessMocks.spawn.mockReturnValue(child);
+    const manager = createProcessManager();
+
+    manager.start('project-1', 'dev', '/workspace/app');
+    child.stdout.emit('data', Buffer.from('ready\n'));
+    manager.stop('project-1', 100);
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(kill).toHaveBeenCalledWith(-4322, 'SIGKILL');
+  });
+
+  it('skips Unix SIGKILL escalation when the process exits before timeout', async () => {
+    setPlatform('linux');
+    vi.useFakeTimers();
+    const kill = vi.spyOn(process, 'kill').mockImplementation(() => true);
+    const child = createMockChild(4323);
+    childProcessMocks.spawn.mockReturnValue(child);
+    const manager = createProcessManager();
+
+    manager.start('project-1', 'dev', '/workspace/app');
+    child.stdout.emit('data', Buffer.from('ready\n'));
+    manager.stop('project-1', 100);
+    child.emit('exit', 0, null);
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(kill).not.toHaveBeenCalledWith(-4323, 'SIGKILL');
+  });
+
+  it('attempts Windows taskkill without force first', () => {
+    setPlatform('win32');
+    vi.useFakeTimers();
+    const child = createMockChild(8765);
+    childProcessMocks.spawn.mockReturnValue(child);
+    const manager = createProcessManager();
+
+    manager.start('project-1', 'dev', '/workspace/app');
+    child.stdout.emit('data', Buffer.from('ready\n'));
+    manager.stop('project-1', 100);
+
+    expect(childProcessMocks.execFile).toHaveBeenCalledWith(
+      'taskkill',
+      ['/pid', '8765', '/T'],
+      expect.any(Function),
+    );
+  });
+
+  it('escalates Windows taskkill with force after timeout if still stopping', async () => {
+    setPlatform('win32');
+    vi.useFakeTimers();
+    const child = createMockChild(8766);
+    childProcessMocks.spawn.mockReturnValue(child);
+    const manager = createProcessManager();
+
+    manager.start('project-1', 'dev', '/workspace/app');
+    child.stdout.emit('data', Buffer.from('ready\n'));
+    manager.stop('project-1', 100);
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(childProcessMocks.execFile).toHaveBeenCalledWith(
+      'taskkill',
+      ['/pid', '8766', '/T', '/F'],
+      expect.any(Function),
+    );
+  });
+
+  it('skips Windows force escalation when the process exits before timeout', async () => {
+    setPlatform('win32');
+    vi.useFakeTimers();
+    const child = createMockChild(8767);
+    childProcessMocks.spawn.mockReturnValue(child);
+    const manager = createProcessManager();
+
+    manager.start('project-1', 'dev', '/workspace/app');
+    child.stdout.emit('data', Buffer.from('ready\n'));
+    manager.stop('project-1', 100);
+    child.emit('exit', 0, null);
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(childProcessMocks.execFile).not.toHaveBeenCalledWith(
+      'taskkill',
+      ['/pid', '8767', '/T', '/F'],
+      expect.any(Function),
+    );
   });
 });
