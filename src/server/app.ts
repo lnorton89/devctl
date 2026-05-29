@@ -4,6 +4,7 @@
  * Creates a configured Express instance with:
  * - JSON body parsing with a small mutation-size limit (T-01-03-03)
  * - `/api/health` endpoint returning `{ ok: true }`
+ * - Project lifecycle routes at `/api/projects/:id/{start,stop,restart,status,logs}`
  * - Project registry CRUD routes at `/api/projects`
  * - Error handler returning safe responses (no request-body / env-value logging)
  *
@@ -14,6 +15,11 @@ import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
 import { createRegistryRepository } from './registry/registryRepository.js';
 import type { RegistryRepository } from './registry/registryRepository.js';
+import {
+  createProcessManager,
+  type ProcessManager,
+} from './process/processManager.js';
+import { createLifecycleRouter } from './routes/lifecycle.js';
 import { createProjectsRouter } from './routes/projects.js';
 import { RegistryLoadError } from './registry/registryErrors.js';
 
@@ -24,6 +30,8 @@ import { RegistryLoadError } from './registry/registryErrors.js';
 export interface CreateAppOptions {
   /** Optional pre-configured repository (allows dependency injection in tests). */
   registryRepository?: RegistryRepository;
+  /** Optional process manager (allows lifecycle route injection in tests). */
+  processManager?: ProcessManager;
 }
 
 // ---------------------------------------------------------------------------
@@ -54,9 +62,15 @@ export function createApp(options?: CreateAppOptions): express.Application {
     res.json({ ok: true });
   });
 
-  // --- Project registry CRUD routes ---
+  // --- Project lifecycle routes must mount before CRUD /:id routes ---
   const repository =
     options?.registryRepository ?? createRegistryRepository();
+  const processManager =
+    options?.processManager ?? createProcessManager();
+  const lifecycleRouter = createLifecycleRouter(processManager, repository);
+  app.use('/api/projects', lifecycleRouter);
+
+  // --- Project registry CRUD routes ---
   const projectsRouter = createProjectsRouter(repository);
   app.use('/api/projects', projectsRouter);
 
