@@ -52,6 +52,7 @@ function createProcessManagerMock(): ProcessManager {
     restart: vi.fn(async () => status()),
     getStatus: vi.fn(() => status({ state: 'stopped', uptime: null })),
     getLogs: vi.fn(() => ({ currentRun: null, history: [] })),
+    setState: vi.fn(),
   };
 }
 

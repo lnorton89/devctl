@@ -29,6 +29,7 @@ export interface ProcessManager {
   ): Promise<ProcessStatus>;
   getStatus(projectId: string): ProcessStatus;
   getLogs(projectId: string): LogData;
+  setState(projectId: string, state: ProcessState): ProcessStatus | null;
 }
 
 export interface ProcessManagerOptions {
@@ -67,7 +68,8 @@ export function createProcessManager(
       existing &&
       (existing.state === 'starting' ||
         existing.state === 'running' ||
-        existing.state === 'stopping')
+        existing.state === 'stopping' ||
+        existing.state === 'unhealthy')
     ) {
       return toStatus(existing);
     }
@@ -139,7 +141,7 @@ export function createProcessManager(
       return getStatus(projectId);
     }
 
-    if (managed.state !== 'running' && managed.state !== 'starting') {
+    if (managed.state !== 'running' && managed.state !== 'starting' && managed.state !== 'unhealthy') {
       return toStatus(managed);
     }
 
@@ -154,7 +156,7 @@ export function createProcessManager(
     cwd: string,
   ): Promise<ProcessStatus> {
     const managed = processes.get(projectId);
-    if (managed?.state === 'running' || managed?.state === 'starting') {
+    if (managed?.state === 'running' || managed?.state === 'starting' || managed?.state === 'unhealthy') {
       stop(projectId);
       await waitForExit(managed);
     }
@@ -227,12 +229,22 @@ export function createProcessManager(
     }, timeoutMs);
   }
 
+  function setState(projectId: string, state: ProcessState): ProcessStatus | null {
+    const managed = processes.get(projectId);
+    if (!managed) {
+      return null;
+    }
+    managed.state = state;
+    return toStatus(managed);
+  }
+
   return {
     start,
     stop,
     restart,
     getStatus,
     getLogs,
+    setState,
   };
 }
 

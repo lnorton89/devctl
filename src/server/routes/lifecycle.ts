@@ -14,6 +14,7 @@ import { dirname, resolve } from 'node:path';
 import type { RegistryRepository } from '../registry/registryRepository.js';
 import type { ProjectConfig } from '../../shared/projectSchema.js';
 import type {
+  HealthStatus,
   LogData,
   PackageJsonBrowserEntry,
   PackageJsonBrowserResponse,
@@ -27,6 +28,10 @@ import {
   PackageJsonParseError,
   parsePackageJson,
 } from '../process/packageJsonParser.js';
+import {
+  checkPortOccupied,
+  checkProjectHealth,
+} from '../services/healthCheck.js';
 
 const SCRIPT_REQUIRED_MESSAGE =
   'Project must have a scriptName before lifecycle actions can run.';
@@ -114,6 +119,17 @@ export function createLifecycleRouter(
   router.post('/:id/start', async (req, res, next) => {
     try {
       const project = await loadProject(repository, req.params.id);
+
+      // Pre-start port occupancy check (OBS-04)
+      if (project.port) {
+        const portCheck = await checkPortOccupied(project.port);
+        if (portCheck.occupied) {
+          return res.status(409).json({
+            message: `Port ${project.port} is already in use.`,
+          });
+        }
+      }
+
       const validation = await validateProjectScript(project);
       if (!validation.valid) {
         return res.status(400).json({ message: validation.message });
@@ -208,6 +224,40 @@ export function createLifecycleRouter(
       await loadProject(repository, req.params.id);
       const logs: LogData = processManager.getLogs(req.params.id);
       res.json(logs);
+    } catch (error) {
+      if (error instanceof ProjectNotFoundError) {
+        return res.status(404).json({ message: error.message });
+      }
+      next(error);
+    }
+  });
+
+  router.get('/:id/health', async (req, res, next) => {
+    try {
+      const project = await loadProject(repository, req.params.id);
+      const status = processManager.getStatus(project.id);
+
+      // Only check health for running or unhealthy processes
+      if (status.state !== 'running' && status.state !== 'unhealthy') {
+        return res.json({ port: null, health: null });
+      }
+
+      const healthResult: HealthStatus = await checkProjectHealth(project);
+
+      // Transition state based on health check results:
+      // - running + any check fails       → unhealthy
+      // - unhealthy + all checks pass     → running
+      const portUnhealthy = project.port != null && healthResult.port != null && !healthResult.port.occupied;
+      const healthUnhealthy = project.healthUrl != null && healthResult.health != null && !healthResult.health.healthy;
+      const isUnhealthy = portUnhealthy || healthUnhealthy;
+
+      if (status.state === 'running' && isUnhealthy) {
+        processManager.setState(project.id, 'unhealthy');
+      } else if (status.state === 'unhealthy' && !isUnhealthy) {
+        processManager.setState(project.id, 'running');
+      }
+
+      res.json(healthResult);
     } catch (error) {
       if (error instanceof ProjectNotFoundError) {
         return res.status(404).json({ message: error.message });
