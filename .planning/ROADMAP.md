@@ -77,6 +77,17 @@ Plans:
 
 **UI hint:** yes
 
+**Plans:** 2 plans in 2 waves
+
+Plans:
+**Wave 1**
+
+- [ ] 03-01-PLAN.md — Add `unhealthy` state, health check service, GET /:id/health endpoint, and pre-start port check.
+
+**Wave 2** *(blocked on Wave 1 completion)*
+
+- [ ] 03-02-PLAN.md — Add client health polling, Port column, unhealthy UI display, and error handling.
+
 **Success criteria:**
 
 1. Dashboard shows every project with status, port or health state, and primary controls.
