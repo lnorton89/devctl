@@ -21,13 +21,14 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 
 import type { ProjectConfig } from '../../shared/projectSchema.js';
-import type { ProcessState, ProcessStatus } from '../../shared/lifecycleSchema.js';
+import type { ProcessState, ProcessStatus, HealthStatus } from '../../shared/lifecycleSchema.js';
 import {
   listProjects,
   startProject,
   stopProject,
   restartProject,
   getProjectStatus,
+  checkProjectHealth,
 } from '../api/projectsApi.js';
 import ProjectTable from './ProjectTable';
 import ProjectMobileList from './ProjectMobileList';
@@ -58,6 +59,9 @@ export default function ProjectRegistryPage() {
   const [processStatuses, setProcessStatuses] = useState<Map<string, ProcessState>>(new Map());
   const [loadingActions, setLoadingActions] = useState<Set<string>>(new Set());
   const [lifecycleError, setLifecycleError] = useState<string | null>(null);
+
+  // Phase 3 — health check state
+  const [healthStatuses, setHealthStatuses] = useState<Map<string, HealthStatus>>(new Map());
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -145,6 +149,20 @@ export default function ProjectRegistryPage() {
           return next;
         });
 
+        // Phase 3 — health check for running/unhealthy projects
+        if (status.state === 'running' || status.state === 'unhealthy') {
+          try {
+            const health = await checkProjectHealth(projectId);
+            setHealthStatuses((prev) => {
+              const next = new Map(prev);
+              next.set(projectId, health);
+              return next;
+            });
+          } catch {
+            // health check failures are non-fatal — we'll retry on next poll
+          }
+        }
+
         // Stop polling on terminal states
         if (
           status.state === 'stopped' ||
@@ -153,6 +171,11 @@ export default function ProjectRegistryPage() {
           status.state === 'errored'
         ) {
           stopPolling(projectId);
+          setHealthStatuses((prev) => {
+            const next = new Map(prev);
+            next.delete(projectId);
+            return next;
+          });
           setLoadingActions((prev) => {
             const next = new Set(prev);
             next.delete(projectId);
@@ -164,6 +187,11 @@ export default function ProjectRegistryPage() {
         pollErrorCountRef.current.set(projectId, errorCount);
         if (errorCount >= MAX_POLL_ERRORS) {
           stopPolling(projectId);
+          setHealthStatuses((prev) => {
+            const next = new Map(prev);
+            next.delete(projectId);
+            return next;
+          });
           setLoadingActions((prev) => {
             const next = new Set(prev);
             next.delete(projectId);
@@ -183,6 +211,11 @@ export default function ProjectRegistryPage() {
 
   const handleStartProject = useCallback(async (project: ProjectConfig) => {
     setLifecycleError(null);
+    setHealthStatuses((prev) => {
+      const next = new Map(prev);
+      next.delete(project.id);
+      return next;
+    });
     setLoadingActions((prev) => {
       const next = new Set(prev);
       next.add(project.id);
@@ -210,6 +243,11 @@ export default function ProjectRegistryPage() {
 
   const handleStopProject = useCallback(async (project: ProjectConfig) => {
     setLifecycleError(null);
+    setHealthStatuses((prev) => {
+      const next = new Map(prev);
+      next.delete(project.id);
+      return next;
+    });
     setLoadingActions((prev) => {
       const next = new Set(prev);
       next.add(project.id);
@@ -237,6 +275,11 @@ export default function ProjectRegistryPage() {
 
   const handleRestartProject = useCallback(async (project: ProjectConfig) => {
     setLifecycleError(null);
+    setHealthStatuses((prev) => {
+      const next = new Map(prev);
+      next.delete(project.id);
+      return next;
+    });
     setLoadingActions((prev) => {
       const next = new Set(prev);
       next.add(project.id);
@@ -397,6 +440,7 @@ export default function ProjectRegistryPage() {
             onRestartProject={handleRestartProject}
             onOpenLogs={handleOpenLogs}
             expandedLogProjectId={expandedLogProjectId}
+            healthStatuses={healthStatuses}
           />
         ) : (
           <ProjectTable
@@ -410,6 +454,7 @@ export default function ProjectRegistryPage() {
             onRestartProject={handleRestartProject}
             onOpenLogs={handleOpenLogs}
             expandedLogProjectId={expandedLogProjectId}
+            healthStatuses={healthStatuses}
           />
         )
       )}

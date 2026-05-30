@@ -28,6 +28,7 @@ const mockStopProject = vi.hoisted(() => vi.fn());
 const mockRestartProject = vi.hoisted(() => vi.fn());
 const mockGetProjectStatus = vi.hoisted(() => vi.fn());
 const mockGetProjectLogs = vi.hoisted(() => vi.fn());
+const mockCheckProjectHealth = vi.hoisted(() => vi.fn());
 const mockParseScripts = vi.hoisted(() => vi.fn());
 const mockBrowsePackageJson = vi.hoisted(() => vi.fn());
 
@@ -41,6 +42,7 @@ vi.mock('../../src/client/api/projectsApi', () => ({
   restartProject: mockRestartProject,
   getProjectStatus: mockGetProjectStatus,
   getProjectLogs: mockGetProjectLogs,
+  checkProjectHealth: mockCheckProjectHealth,
   parseScripts: mockParseScripts,
   browsePackageJson: mockBrowsePackageJson,
   ApiError: class ApiError extends Error {
@@ -617,6 +619,105 @@ describe('ProjectRegistryPage', () => {
 
     await waitFor(() => {
       expect(screen.queryByText('ready on 5273')).not.toBeInTheDocument();
+    });
+  });
+
+  // ===================================================================
+  // Phase 3: Health polling and port-occupied errors
+  // ===================================================================
+
+  it('calls checkProjectHealth when project is running after lifecycle start', async () => {
+    mockListProjects.mockResolvedValue([
+      sampleProject({ id: 'p1', name: 'Health App', port: 3000 }),
+    ]);
+    mockGetProjectStatus
+      .mockResolvedValueOnce({ state: 'stopped', uptime: null, recentLogTail: [] })
+      .mockResolvedValue({ state: 'running', uptime: 10, recentLogTail: [] });
+    mockStartProject.mockResolvedValue({
+      state: 'starting',
+      uptime: null,
+      recentLogTail: [],
+    });
+    mockCheckProjectHealth.mockResolvedValue({
+      port: { occupied: true },
+      health: { healthy: true, statusCode: 200 },
+    });
+
+    const user = userEvent.setup();
+    render(<ProjectRegistryPage />);
+
+    // Wait for project to render with Start button
+    await waitFor(() => {
+      expect(screen.getByText('Health App')).toBeInTheDocument();
+    });
+
+    // Click Start — this triggers startPolling with a 1s interval
+    await user.click(screen.getByRole('button', { name: /start health app/i }));
+
+    // Wait for the polling interval to fire and checkProjectHealth to be called
+    await waitFor(
+      () => {
+        expect(mockCheckProjectHealth).toHaveBeenCalledWith('p1');
+      },
+      { timeout: 3000 },
+    );
+  });
+
+  it('does not call checkProjectHealth when project is stopped', async () => {
+    mockListProjects.mockResolvedValue([
+      sampleProject({ id: 'p1', name: 'Stopped App', port: 3000 }),
+    ]);
+    mockGetProjectStatus.mockResolvedValue({
+      state: 'stopped',
+      uptime: null,
+      recentLogTail: [],
+    });
+
+    render(<ProjectRegistryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Stopped App')).toBeInTheDocument();
+    });
+
+    // Allow a small window for any potential health check calls
+    await new Promise((r) => setTimeout(r, 100));
+
+    expect(mockCheckProjectHealth).not.toHaveBeenCalled();
+  });
+
+  it('shows port-occupied error in snackbar on start failure', async () => {
+    mockListProjects.mockResolvedValue([
+      sampleProject({ id: 'p1', name: 'Port App', port: 3000 }),
+    ]);
+    mockGetProjectStatus.mockResolvedValue({
+      state: 'stopped',
+      uptime: null,
+      recentLogTail: [],
+    });
+    mockStartProject.mockRejectedValue(
+      new (class extends Error {
+        status: number;
+        constructor() {
+          super('Port 3000 is already in use.');
+          this.name = 'ApiError';
+          this.status = 409;
+        }
+      })(),
+    );
+
+    const user = userEvent.setup();
+    render(<ProjectRegistryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Port App')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /start port app/i }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Port 3000 is already in use/),
+      ).toBeInTheDocument();
     });
   });
 });
