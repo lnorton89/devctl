@@ -12,6 +12,7 @@ import type { ProjectConfig, ProjectInput, FormattedIssue } from '../../shared/p
 import type {
   ProcessStatus,
   LogData,
+  HealthStatus,
   PackageJsonBrowserResponse,
   ParseScriptsResponse,
 } from '../../shared/lifecycleSchema.js';
@@ -205,6 +206,22 @@ export async function getProjectStatus(id: string): Promise<ProcessStatus> {
 export async function getProjectLogs(id: string): Promise<LogData> {
   const response = await fetch(`${API_BASE}/${encodeURIComponent(id)}/logs`);
   return handleResponse<LogData>(response);
+}
+
+// ---------------------------------------------------------------------------
+// Health Check API — Phase 3 (OBS-02, OBS-04)
+// ---------------------------------------------------------------------------
+
+/**
+ * Check port and health URL reachability for a running project.
+ *
+ * @param id  The stable project ID.
+ * @returns Port and health check results.
+ * @throws {ApiError} On not-found (404) or server errors.
+ */
+export async function checkProjectHealth(id: string): Promise<HealthStatus> {
+  const response = await fetch(`${API_BASE}/${encodeURIComponent(id)}/health`);
+  return handleResponse<HealthStatus>(response);
 }
 
 /**
