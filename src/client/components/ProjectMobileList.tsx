@@ -26,7 +26,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 
 
 import type { ProjectConfig } from '../../shared/projectSchema.js';
-import type { ProcessState } from '../../shared/lifecycleSchema.js';
+import type { ProcessState, HealthStatus } from '../../shared/lifecycleSchema.js';
 import LiveProjectLogs from './LiveProjectLogs';
 
 // ---------------------------------------------------------------------------
@@ -44,6 +44,8 @@ export interface ProjectMobileListProps {
   onRestartProject?: (project: ProjectConfig) => void;
   onOpenLogs?: (project: ProjectConfig) => void;
   expandedLogProjectId?: string | null;
+  /** Phase 3 — port/health check results per project. */
+  healthStatuses?: Map<string, HealthStatus>;
 }
 
 // ---------------------------------------------------------------------------
@@ -153,6 +155,7 @@ export default function ProjectMobileList({
   onRestartProject,
   onOpenLogs,
   expandedLogProjectId,
+  healthStatuses,
 }: ProjectMobileListProps) {
   if (projects.length === 0) {
     return null;
@@ -300,6 +303,9 @@ export default function ProjectMobileList({
             <Box sx={{ mt: 1.5, display: 'flex', flexDirection: 'column', gap: 0.75 }}>
               <MetadataRow label="Host" value={project.hostPath} />
               <MetadataRow label="Command" value={project.startCommand} />
+              {project.port && (
+                <MetadataRow label="Port" value={String(project.port)} />
+              )}
             </Box>
 
             <Collapse in={logsExpanded} timeout="auto" unmountOnExit>
