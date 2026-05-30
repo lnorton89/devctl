@@ -1,8 +1,6 @@
 # devctl
 
-**devctl** is a local web app for managing the lifecycle of development server processes. It provides a Material UI dashboard for registering projects, configuring their start commands, environment, and ports, and (in future phases) starting, stopping, and monitoring them.
-
-> **Phase 1 — Project Registry Foundation.** This release covers project registration, configuration storage, and basic CRUD through a web UI. Lifecycle execution, health polling, logs, and autostart are planned for later phases.
+**devctl** is a local web app for managing the lifecycle of development server processes. It provides a Material UI dashboard for registering projects, starting/stopping their dev servers, viewing status and logs, and configuring boot-time automation.
 
 ---
 
@@ -49,13 +47,39 @@ npm test             # Run tests in watch mode
 npm test -- --run    # Run once (CI-friendly)
 ```
 
-144 tests across 7 test files covering shared schema validation, YAML registry persistence, Express API routes, React components, and an end-to-end integration flow.
+193 tests across 12 test files covering shared schema validation, YAML registry persistence, Express API routes, React components, lifecycle process management, and an end-to-end integration flow.
 
 ### Type Check
 
 ```bash
 npm run typecheck
 ```
+
+---
+
+## Usage
+
+### Adding a project
+
+1. Click **Add project**
+2. Click **Select package.json** to browse the filesystem for a project directory
+3. Choose a directory containing a `package.json`, then select an npm script
+4. The project is saved with the directory path, script name, and a generated `startCommand` of `npm run <script>`
+
+### Lifecycle controls
+
+Each project shows action buttons based on its current state:
+
+| State     | Available actions                |
+|-----------|----------------------------------|
+| Stopped   | Start                            |
+| Starting  | Stop                             |
+| Running   | Stop, Restart, View logs         |
+| Stopping  | (waiting)                        |
+| Failed    | Start, Restart, View logs        |
+| Error     | Start                            |
+
+A pulsing Status chip indicates transitional states (Starting, Stopping). Logs can be toggled inline per project.
 
 ---
 
@@ -86,15 +110,16 @@ Each project record stores the following fields:
 | `name` | Yes | Human-readable project label |
 | `hostPath` | Yes | Path on the host workstation |
 | `containerPath` | Yes | Mounted path used inside Docker |
-| `startCommand` | Yes | Shell command to start the dev server |
+| `startCommand` | Yes | Shell command to start the dev server (`npm run <script>`) |
+| `scriptName` | No | npm script selected for lifecycle execution |
 | `appUrl` | No | URL to open the app in the browser |
 | `port` | No | Port number (1–65535) |
 | `healthUrl` | No | URL for health-check polling (future use) |
-| `envFilePath` | No | Optional `.env` file path (relative to `containerPath` unless absolute) |
+| `envFilePath` | No | Optional `.env` file path |
 | `env` | No (default `[]`) | Key/value environment variable overrides |
 | `autostart` | No (default `false`) | Start on devctl boot (future use) |
 
-Environment variable values are considered local sensitive configuration. They are editable through the project form UI but are **not shown** in the registry table, logged, or exposed outside the edit surface.
+Environment variable values are editable through the project form but are **not shown** in the registry table, logged, or exposed outside the edit surface.
 
 ### API
 
@@ -104,28 +129,15 @@ Environment variable values are considered local sensitive configuration. They a
 | `POST` | `/api/projects` | Create a new project |
 | `PUT` | `/api/projects/:id` | Update an existing project |
 | `DELETE` | `/api/projects/:id` | Delete a project |
+| `GET` | `/api/projects/package-json-browser` | Browse directories for package.json files |
+| `POST` | `/api/projects/parse-scripts` | Parse npm scripts from a directory's package.json |
+| `POST` | `/api/projects/:id/start` | Start a project's dev server |
+| `POST` | `/api/projects/:id/stop` | Stop a running project |
+| `POST` | `/api/projects/:id/restart` | Restart a running or failed project |
+| `GET` | `/api/projects/:id/status` | Get current process status (state, uptime, recent logs) |
+| `GET` | `/api/projects/:id/logs` | Get log data with current run and run history |
 
 All endpoints validate input through a shared Zod schema. Validation errors return HTTP 400 with field-level issue paths. Registry load errors (malformed YAML) return HTTP 503.
-
----
-
-## Phase 1 Scope
-
-**What Phase 1 does:**
-- Register projects with name, host/container paths, start command, and optional configuration
-- Edit and delete registered projects
-- Persist project configuration to a human-readable YAML file
-- Serve a Material UI dashboard for managing the registry
-
-**What Phase 1 does NOT do:**
-- ❌ Execute project start/stop commands (Phase 2)
-- ❌ Monitor project health or port occupancy (Phase 3)
-- ❌ Display live process status or logs (Phase 3)
-- ❌ Automatically start projects on boot (Phase 4)
-- ❌ Provide Docker runtime setup (Phase 5)
-- ❌ Run commands or execute configured start commands
-
-Commands are stored as configuration strings only and are not executed. This is a deliberate Phase 1 boundary — see planned Phase 2 for lifecycle execution.
 
 ---
 
@@ -136,15 +148,18 @@ src/
 ├── client/              # React frontend (Material UI)
 │   ├── App.tsx
 │   ├── main.tsx
+│   ├── theme.ts         # Aurora-inspired theme
 │   ├── api/             # API client functions
 │   └── components/      # UI components
 ├── server/              # Express backend
 │   ├── index.ts         # Server entry point
-│   ├── app.ts           # App factory
-│   ├── routes/          # API route handlers
-│   └── registry/        # YAML persistence layer
+│   ├── app.ts           # App factory (dependency injection)
+│   ├── routes/          # API route handlers (registry + lifecycle)
+│   ├── registry/        # YAML persistence layer
+│   └── process/         # Process manager and package.json parser
 └── shared/              # Shared Zod schemas and types
-    └── projectSchema.ts
+    ├── projectSchema.ts
+    └── lifecycleSchema.ts
 
 tests/
 ├── client/              # React component tests
