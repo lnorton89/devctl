@@ -73,6 +73,7 @@ const STATUS_COLORS: Record<ProcessState, 'default' | 'success' | 'warning' | 'e
   stopped: 'default',
   starting: 'warning',
   running: 'success',
+  unhealthy: 'error',
   stopping: 'warning',
   failed: 'error',
   errored: 'error',
@@ -82,6 +83,7 @@ const STATUS_VARIANTS: Record<ProcessState, 'filled' | 'outlined'> = {
   stopped: 'outlined',
   starting: 'filled',
   running: 'filled',
+  unhealthy: 'filled',
   stopping: 'filled',
   failed: 'filled',
   errored: 'outlined',
@@ -91,6 +93,7 @@ const STATUS_LABELS: Record<ProcessState, string> = {
   stopped: 'Stopped',
   starting: 'Starting',
   running: 'Running',
+  unhealthy: 'Unhealthy',
   stopping: 'Stopping',
   failed: 'Failed',
   errored: 'Error',
@@ -109,7 +112,7 @@ const pulseKeyframes = {
 // ---------------------------------------------------------------------------
 
 function StatusChip({ state }: { state: ProcessState }) {
-  const isTransition = state === 'starting' || state === 'stopping';
+  const isTransition = state === 'starting' || state === 'stopping' || state === 'unhealthy';
   return (
     <Chip
       label={STATUS_LABELS[state]}
@@ -167,11 +170,11 @@ function canStart(state: ProcessState | undefined): boolean {
 }
 
 function canStop(state: ProcessState | undefined): boolean {
-  return state === 'running' || state === 'starting';
+  return state === 'running' || state === 'starting' || state === 'unhealthy';
 }
 
 function canRestart(state: ProcessState | undefined): boolean {
-  return state === 'running' || state === 'failed';
+  return state === 'running' || state === 'failed' || state === 'unhealthy';
 }
 
 // ---------------------------------------------------------------------------

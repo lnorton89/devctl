@@ -4,6 +4,7 @@ export const processStateSchema = z.enum([
   'stopped',
   'starting',
   'running',
+  'unhealthy',
   'stopping',
   'failed',
   'errored',
@@ -69,3 +70,29 @@ export const packageJsonBrowserResponseSchema = z.object({
 });
 
 export type PackageJsonBrowserResponse = z.output<typeof packageJsonBrowserResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Port / Health Check Types (Phase 3 — OBS-02, OBS-04)
+// ---------------------------------------------------------------------------
+
+export const portCheckResultSchema = z.object({
+  occupied: z.boolean(),
+  error: z.string().optional(),
+});
+
+export type PortCheckResult = z.output<typeof portCheckResultSchema>;
+
+export const healthCheckResultSchema = z.object({
+  healthy: z.boolean(),
+  statusCode: z.number().int().optional(),
+  error: z.string().optional(),
+});
+
+export type HealthCheckResult = z.output<typeof healthCheckResultSchema>;
+
+export const healthStatusSchema = z.object({
+  port: portCheckResultSchema.nullable(),
+  health: healthCheckResultSchema.nullable(),
+});
+
+export type HealthStatus = z.output<typeof healthStatusSchema>;
