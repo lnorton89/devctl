@@ -34,7 +34,7 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 
 
 import type { ProjectConfig } from '../../shared/projectSchema.js';
-import type { ProcessState } from '../../shared/lifecycleSchema.js';
+import type { ProcessState, HealthStatus } from '../../shared/lifecycleSchema.js';
 import LiveProjectLogs from './LiveProjectLogs';
 
 // ---------------------------------------------------------------------------
@@ -52,6 +52,8 @@ export interface ProjectTableProps {
   onRestartProject?: (project: ProjectConfig) => void;
   onOpenLogs?: (project: ProjectConfig) => void;
   expandedLogProjectId?: string | null;
+  /** Phase 3 — port/health check results per project. */
+  healthStatuses?: Map<string, HealthStatus>;
 }
 
 // ---------------------------------------------------------------------------
@@ -192,10 +194,13 @@ export default function ProjectTable({
   onRestartProject,
   onOpenLogs,
   expandedLogProjectId,
+  healthStatuses,
 }: ProjectTableProps) {
   if (projects.length === 0) {
     return null;
   }
+
+  const hasPortConfig = projects.some((p) => p.port != null);
 
   return (
     <TableContainer>
@@ -205,7 +210,8 @@ export default function ProjectTable({
             <TableCell>Project</TableCell>
             <TableCell>Host path</TableCell>
             <TableCell>Command</TableCell>
-            <TableCell sx={{ width: 120 }}>Status</TableCell>
+            {hasPortConfig && <TableCell sx={{ width: 80 }}>Port</TableCell>}
+            <TableCell sx={{ width: 160 }}>Status</TableCell>
             <TableCell sx={{ width: 180 }}>Actions</TableCell>
           </TableRow>
         </TableHead>
@@ -257,6 +263,39 @@ export default function ProjectTable({
                   <TableCell>
                     <MonospaceCell value={project.startCommand} maxWidth={180} />
                   </TableCell>
+
+                  {hasPortConfig && (
+                    <TableCell>
+                      {project.port ? (
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                          <Box
+                            component="span"
+                            sx={{
+                              width: 8,
+                              height: 8,
+                              borderRadius: '50%',
+                              bgcolor: healthStatuses?.get(project.id)?.port?.occupied
+                                ? 'success.main'
+                                : healthStatuses?.get(project.id)?.port
+                                  ? 'error.main'
+                                  : 'grey.400',
+                              display: 'inline-block',
+                            }}
+                          />
+                          <Typography
+                            component="span"
+                            sx={{ fontFamily: MONO_STACK, fontSize: 13 }}
+                          >
+                            {project.port}
+                          </Typography>
+                        </Box>
+                      ) : (
+                        <Typography component="span" color="text.secondary" sx={{ fontSize: 14 }}>
+                          &mdash;
+                        </Typography>
+                      )}
+                    </TableCell>
+                  )}
 
                   <TableCell>
                     {state ? (
@@ -353,7 +392,7 @@ export default function ProjectTable({
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell colSpan={5} sx={{ py: 0, borderBottom: logsExpanded ? undefined : 0 }}>
+                  <TableCell colSpan={hasPortConfig ? 6 : 5} sx={{ py: 0, borderBottom: logsExpanded ? undefined : 0 }}>
                     <Collapse in={logsExpanded} timeout="auto" unmountOnExit>
                       <Box sx={{ py: 2 }}>
                         <LiveProjectLogs project={project} />
