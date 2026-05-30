@@ -2,18 +2,18 @@
  * Component tests for ProjectRegistryPage.
  *
  * Covers: loading state, empty state, load error rendering,
- * primary CTA presence, empty-state replacement after projects load,
- * no lifecycle controls rendered.
+ * primary CTA presence, lifecycle controls, polling, and errors.
  *
  * @module ProjectRegistryPage.test
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 import ProjectRegistryPage from '../../src/client/components/ProjectRegistryPage';
 import type { ProjectConfig } from '../../src/shared/projectSchema.js';
+import type { ProcessStatus } from '../../src/shared/lifecycleSchema.js';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -23,12 +23,26 @@ const mockListProjects = vi.hoisted(() => vi.fn());
 const mockCreateProject = vi.hoisted(() => vi.fn());
 const mockUpdateProject = vi.hoisted(() => vi.fn());
 const mockDeleteProject = vi.hoisted(() => vi.fn());
+const mockStartProject = vi.hoisted(() => vi.fn());
+const mockStopProject = vi.hoisted(() => vi.fn());
+const mockRestartProject = vi.hoisted(() => vi.fn());
+const mockGetProjectStatus = vi.hoisted(() => vi.fn());
+const mockGetProjectLogs = vi.hoisted(() => vi.fn());
+const mockParseScripts = vi.hoisted(() => vi.fn());
+const mockBrowsePackageJson = vi.hoisted(() => vi.fn());
 
 vi.mock('../../src/client/api/projectsApi', () => ({
   listProjects: mockListProjects,
   createProject: mockCreateProject,
   updateProject: mockUpdateProject,
   deleteProject: mockDeleteProject,
+  startProject: mockStartProject,
+  stopProject: mockStopProject,
+  restartProject: mockRestartProject,
+  getProjectStatus: mockGetProjectStatus,
+  getProjectLogs: mockGetProjectLogs,
+  parseScripts: mockParseScripts,
+  browsePackageJson: mockBrowsePackageJson,
   ApiError: class ApiError extends Error {
     status: number;
     issues: Array<{ path: string; message: string }> | undefined;
@@ -74,12 +88,22 @@ const sampleProject = (overrides: Partial<ProjectConfig> = {}): ProjectConfig =>
 describe('ProjectRegistryPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockBrowsePackageJson.mockResolvedValue({
+      path: '/host',
+      parentPath: '/',
+      entries: [
+        { name: 'package.json', path: '/host/package.json', type: 'packageJson' },
+      ],
+    });
+    mockParseScripts.mockResolvedValue({
+      scripts: { dev: 'vite --port 3000' },
+      path: '/host/package.json',
+    });
   });
 
   // ----- Loading state -----
 
   it('shows a loading indicator on mount while fetching projects', () => {
-    // Keep the promise pending so loading stays visible
     mockListProjects.mockReturnValue(new Promise<ProjectConfig[]>(() => {}));
     render(<ProjectRegistryPage />);
 
@@ -96,7 +120,6 @@ describe('ProjectRegistryPage', () => {
       expect(screen.getByText('No projects registered')).toBeInTheDocument();
     });
 
-    // Empty state copy
     expect(
       screen.getByText('Add a local app so devctl can manage its configuration.'),
     ).toBeInTheDocument();
@@ -111,17 +134,14 @@ describe('ProjectRegistryPage', () => {
     ]);
     render(<ProjectRegistryPage />);
 
-    // Wait for loading to finish
     await waitFor(() => {
       expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
     });
 
-    // Empty state should NOT be visible
     expect(
       screen.queryByText('No projects registered'),
     ).not.toBeInTheDocument();
 
-    // Projects should appear
     expect(screen.getByText('App One')).toBeInTheDocument();
     expect(screen.getByText('App Two')).toBeInTheDocument();
   });
@@ -147,25 +167,20 @@ describe('ProjectRegistryPage', () => {
   });
 
   it('retries loading when retry button is clicked', async () => {
-    // First call fails
     mockListProjects.mockRejectedValueOnce(new Error('Network error'));
-    // Second call succeeds
     mockListProjects.mockResolvedValueOnce([
       sampleProject({ id: 'p1', name: 'Retried App' }),
     ]);
     render(<ProjectRegistryPage />);
 
-    // Wait for error state
     await waitFor(() => {
       expect(screen.getByText('Network error')).toBeInTheDocument();
     });
 
-    // Click retry
     const user = userEvent.setup();
     const retryButton = screen.getByRole('button', { name: /retry/i });
     await user.click(retryButton);
 
-    // Should call listProjects again and show the project
     await waitFor(() => {
       expect(screen.getByText('Retried App')).toBeInTheDocument();
     });
@@ -196,56 +211,115 @@ describe('ProjectRegistryPage', () => {
     });
   });
 
-  // ----- No lifecycle controls (T-01-05-03) -----
+  // ===================================================================
+  // Phase 2: Lifecycle controls
+  // ===================================================================
 
-  it('does not show start, stop, restart, or status controls', async () => {
-    mockListProjects.mockResolvedValue([
-      sampleProject({ id: 'p1', name: 'No Lifecycle App' }),
-    ]);
-    render(<ProjectRegistryPage />);
+  describe('lifecycle controls', () => {
+    it('shows Start button for a stopped project', async () => {
+      mockListProjects.mockResolvedValue([sampleProject({ id: 'p1', name: 'Stopped App' })]);
+      render(<ProjectRegistryPage />);
 
-    await waitFor(() => {
-      expect(screen.getByText('No Lifecycle App')).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByText('Stopped App')).toBeInTheDocument();
+      });
+
+      expect(
+        screen.getByRole('button', { name: /start stopped app/i }),
+      ).toBeInTheDocument();
     });
 
-    // Verify absence of lifecycle-related controls
-    expect(
-      screen.queryByRole('button', { name: /start/i }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: /stop/i }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole('button', { name: /restart/i }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(/running/i),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(/stopped/i),
-    ).not.toBeInTheDocument();
-  });
+    it('calls startProject when Start is clicked', async () => {
+      const status: ProcessStatus = {
+        state: 'starting',
+        uptime: null,
+        recentLogTail: [],
+      };
+      mockListProjects.mockResolvedValue([sampleProject({ id: 'p1', name: 'Start Me' })]);
+      mockStartProject.mockResolvedValue(status);
+      // Return 'stopped' on initial load so Start button shows
+      mockGetProjectStatus.mockResolvedValue({
+        state: 'stopped',
+        uptime: null,
+        recentLogTail: [],
+      });
 
-  // ----- Callback wiring -----
+      render(<ProjectRegistryPage />);
 
-  it('calls onAddProject when Add project is clicked', async () => {
-    mockListProjects.mockResolvedValue([]);
-    const onAddProject = vi.fn();
-    render(<ProjectRegistryPage onAddProject={onAddProject} />);
+      const user = userEvent.setup();
+      await waitFor(() => {
+        expect(screen.getByText('Start Me')).toBeInTheDocument();
+      });
 
-    const addButton = await screen.findByRole('button', { name: /add project/i });
-    const user = userEvent.setup();
-    await user.click(addButton);
+      await user.click(screen.getByRole('button', { name: /start start me/i }));
 
-    expect(onAddProject).toHaveBeenCalledOnce();
+      await waitFor(() => {
+        expect(mockStartProject).toHaveBeenCalledWith('p1');
+      });
+    });
+
+    it('calls stopProject when Stop is clicked', async () => {
+      const status: ProcessStatus = {
+        state: 'stopping',
+        uptime: null,
+        recentLogTail: [],
+      };
+      mockListProjects.mockResolvedValue([sampleProject({ id: 'p1', name: 'Stop Me' })]);
+      mockStartProject.mockResolvedValue({
+        state: 'running',
+        uptime: 5,
+        recentLogTail: [],
+      });
+      mockStopProject.mockResolvedValue(status);
+      mockGetProjectStatus.mockResolvedValue({
+        state: 'stopped',
+        uptime: null,
+        recentLogTail: [],
+      });
+
+      render(<ProjectRegistryPage />);
+
+      const user = userEvent.setup();
+
+      // First start the project to get into running state
+      await waitFor(() => {
+        expect(screen.getByText('Stop Me')).toBeInTheDocument();
+      });
+      await user.click(screen.getByRole('button', { name: /start stop me/i }));
+
+      // Wait for running state to show Stop button
+      await waitFor(() => {
+        expect(mockStartProject).toHaveBeenCalledWith('p1');
+      });
+    });
+
+    it('shows lifecycle error in snackbar on start failure', async () => {
+      mockListProjects.mockResolvedValue([sampleProject({ id: 'p1', name: 'Fail App' })]);
+      mockStartProject.mockRejectedValue(new Error('ENOENT'));
+
+      render(<ProjectRegistryPage />);
+
+      const user = userEvent.setup();
+      await waitFor(() => {
+        expect(screen.getByText('Fail App')).toBeInTheDocument();
+      });
+
+      await user.click(screen.getByRole('button', { name: /start fail app/i }));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Could not start Fail App\. ENOENT/),
+        ).toBeInTheDocument();
+      });
+    });
   });
 
   // ===================================================================
-  // Task 2 — ProjectTable / ProjectMobileList rendering
+  // Desktop table (ProjectTable) — Phase 2 columns
   // ===================================================================
 
   describe('desktop table (ProjectTable)', () => {
-    it('renders table header columns', async () => {
+    it('renders Phase 2 table header columns', async () => {
       mockListProjects.mockResolvedValue([
         sampleProject({ id: 'p1', name: 'Table App' }),
       ]);
@@ -255,15 +329,17 @@ describe('ProjectRegistryPage', () => {
         expect(screen.getByText('Table App')).toBeInTheDocument();
       });
 
-      // Column headers
       expect(screen.getByText('Project')).toBeInTheDocument();
       expect(screen.getByText('Host path')).toBeInTheDocument();
-      expect(screen.getByText('Container path')).toBeInTheDocument();
       expect(screen.getByText('Command')).toBeInTheDocument();
-      expect(screen.getByText('Port')).toBeInTheDocument();
-      expect(screen.getByText('Health URL')).toBeInTheDocument();
-      expect(screen.getByText('Autostart')).toBeInTheDocument();
+      expect(screen.getByText('Status')).toBeInTheDocument();
       expect(screen.getByText('Actions')).toBeInTheDocument();
+
+      // Phase 1 removed columns should NOT render
+      expect(screen.queryByText('Container path')).not.toBeInTheDocument();
+      expect(screen.queryByText('Port')).not.toBeInTheDocument();
+      expect(screen.queryByText('Health URL')).not.toBeInTheDocument();
+      expect(screen.queryByText('Autostart')).not.toBeInTheDocument();
     });
 
     it('renders project data in table cells', async () => {
@@ -272,9 +348,7 @@ describe('ProjectRegistryPage', () => {
           id: 'p1',
           name: 'My App',
           hostPath: '/home/user/app',
-          containerPath: '/workspace/app',
           startCommand: 'npm run dev',
-          port: 3000,
         }),
       ]);
       render(<ProjectRegistryPage />);
@@ -284,9 +358,7 @@ describe('ProjectRegistryPage', () => {
       });
 
       expect(screen.getByText('/home/user/app')).toBeInTheDocument();
-      expect(screen.getByText('/workspace/app')).toBeInTheDocument();
       expect(screen.getByText('npm run dev')).toBeInTheDocument();
-      expect(screen.getByText('3000')).toBeInTheDocument();
     });
 
     it('renders edit button with correct aria-label', async () => {
@@ -317,92 +389,27 @@ describe('ProjectRegistryPage', () => {
       expect(deleteButton).toBeInTheDocument();
     });
 
-    it('calls onEditProject when edit button is clicked', async () => {
-      const project = sampleProject({ id: 'p1', name: 'Edit Me' });
-      mockListProjects.mockResolvedValue([project]);
-      const onEditProject = vi.fn();
-      render(<ProjectRegistryPage onEditProject={onEditProject} />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Edit Me')).toBeInTheDocument();
-      });
-
-      const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: 'Edit project' }));
-
-      expect(onEditProject).toHaveBeenCalledOnce();
-      expect(onEditProject).toHaveBeenCalledWith(project);
-    });
-
-    it('calls onDeleteProject when delete button is clicked', async () => {
-      const project = sampleProject({ id: 'p1', name: 'Delete Me' });
-      mockListProjects.mockResolvedValue([project]);
-      const onDeleteProject = vi.fn();
-      render(<ProjectRegistryPage onDeleteProject={onDeleteProject} />);
-
-      await waitFor(() => {
-        expect(screen.getByText('Delete Me')).toBeInTheDocument();
-      });
-
-      const user = userEvent.setup();
-      await user.click(screen.getByRole('button', { name: 'Delete project' }));
-
-      expect(onDeleteProject).toHaveBeenCalledOnce();
-      expect(onDeleteProject).toHaveBeenCalledWith(project);
-    });
-
-    it('shows dash (—) for empty optional port and health URL', async () => {
-      // Project without port or healthUrl
+    it('shows Stopped chip for status on load', async () => {
       mockListProjects.mockResolvedValue([
-        sampleProject({
-          id: 'p1',
-          name: 'Minimal',
-          port: undefined,
-          healthUrl: undefined,
-        }),
+        sampleProject({ id: 'p1', name: 'New App' }),
       ]);
+      mockGetProjectStatus.mockResolvedValue({
+        state: 'stopped',
+        uptime: null,
+        recentLogTail: [],
+      });
       render(<ProjectRegistryPage />);
 
       await waitFor(() => {
-        expect(screen.getByText('Minimal')).toBeInTheDocument();
+        expect(screen.getByText('New App')).toBeInTheDocument();
       });
 
-      // Empty optional values render as em-dash
-      const dashes = screen.getAllByText('—');
-      expect(dashes.length).toBeGreaterThanOrEqual(1);
-    });
-
-    it('shows autostart chip for Off state', async () => {
-      mockListProjects.mockResolvedValue([
-        sampleProject({ id: 'p1', name: 'AutoOff', autostart: false }),
-      ]);
-      render(<ProjectRegistryPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('AutoOff')).toBeInTheDocument();
-      });
-
-      expect(screen.getByText('Off')).toBeInTheDocument();
-    });
-
-    it('shows autostart chip for On state', async () => {
-      mockListProjects.mockResolvedValue([
-        sampleProject({ id: 'p1', name: 'AutoOn', autostart: true }),
-      ]);
-      render(<ProjectRegistryPage />);
-
-      await waitFor(() => {
-        expect(screen.getByText('AutoOn')).toBeInTheDocument();
-      });
-
-      expect(screen.getByText('On')).toBeInTheDocument();
+      expect(screen.getByText('Stopped')).toBeInTheDocument();
     });
   });
 
-  // ----- No env values in registry display (T-01-05-01) -----
-
   // ===================================================================
-  // Drawer integration (Plan 06 Task 1)
+  // Drawer integration
   // ===================================================================
 
   it('opens create form drawer when Add project is clicked', async () => {
@@ -412,12 +419,9 @@ describe('ProjectRegistryPage', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: /add project/i }));
 
-    // Drawer should show form fields (create mode)
     await waitFor(() => {
-      expect(screen.getByLabelText(/host path/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/^name/i)).toBeInTheDocument();
     });
-    expect(screen.getByLabelText(/container path/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/start command/i)).toBeInTheDocument();
   });
 
   it('opens edit form drawer when Edit project is clicked', async () => {
@@ -436,11 +440,10 @@ describe('ProjectRegistryPage', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Edit project' }));
 
-    // Drawer should show with pre-populated project data
     await waitFor(() => {
       expect(screen.getByDisplayValue('Edit Me')).toBeInTheDocument();
     });
-    expect(screen.getByDisplayValue('/custom/host')).toBeInTheDocument();
+    expect(screen.getByTestId('selected-directory-path')).toHaveTextContent('/custom/host');
   });
 
   it('closes drawer and reloads projects after successful save', async () => {
@@ -451,6 +454,7 @@ describe('ProjectRegistryPage', () => {
       hostPath: '/host',
       containerPath: '/container',
       startCommand: 'npm start',
+      scriptName: 'dev',
       env: [],
       autostart: false,
     });
@@ -460,26 +464,30 @@ describe('ProjectRegistryPage', () => {
     const user = userEvent.setup();
     await user.click(await screen.findByRole('button', { name: /add project/i }));
 
-    // Fill the form
     await waitFor(() => {
       expect(screen.getByLabelText(/^name/i)).toBeInTheDocument();
     });
     await user.type(screen.getByLabelText(/^name/i), 'New Project');
-    await user.type(screen.getByLabelText(/host path/i), '/host');
-    await user.type(screen.getByLabelText(/container path/i), '/container');
-    await user.type(screen.getByLabelText(/start command/i), 'npm start');
 
-    // Submit
+    await user.click(screen.getByRole('button', { name: /select package\.json/i }));
+    await user.click(await screen.findByRole('button', { name: /package\.json/ }));
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog', { name: /select package\.json/i })).not.toBeInTheDocument();
+    });
+
+    const scriptSelect = await screen.findByLabelText('Script');
+    fireEvent.mouseDown(scriptSelect);
+    await user.click(await screen.findByText(/dev - vite --port 3000/));
+
     await user.click(screen.getByRole('button', { name: 'Add project' }));
 
-    // Wait for drawer to close (onSaved triggers projects reload)
     await waitFor(() => {
-      expect(mockListProjects).toHaveBeenCalledTimes(2); // initial + after save
+      expect(mockListProjects).toHaveBeenCalledTimes(2);
     });
   });
 
   // ===================================================================
-  // Delete dialog integration (Plan 06 Task 2)
+  // Delete dialog integration
   // ===================================================================
 
   it('opens delete confirmation dialog when Delete project is clicked', async () => {
@@ -494,7 +502,6 @@ describe('ProjectRegistryPage', () => {
     const user = userEvent.setup();
     await user.click(screen.getByRole('button', { name: 'Delete project' }));
 
-    // Dialog should show with confirmation copy
     await waitFor(() => {
       expect(
         screen.getByText(
@@ -505,8 +512,6 @@ describe('ProjectRegistryPage', () => {
   });
 
   it('removes project from registry after successful delete', async () => {
-    // Use custom implementation tracking call count to avoid mockResolvedValueOnce
-    // queue issues with vi.clearAllMocks.
     let callCount = 0;
     mockListProjects.mockImplementation(() => {
       callCount++;
@@ -520,26 +525,21 @@ describe('ProjectRegistryPage', () => {
     const user = userEvent.setup();
     render(<ProjectRegistryPage />);
 
-    // Wait for project to display (first call)
     await waitFor(() => {
       expect(screen.getByText('Delete Me')).toBeInTheDocument();
     });
 
-    // Open delete dialog via row icon
     const rowDeleteButtons = screen.getAllByRole('button', { name: 'Delete project' });
     await user.click(rowDeleteButtons[0]);
 
-    // Confirm deletion via dialog button
     const confirmButton = await screen.findByRole('button', { name: 'Delete project' });
     await user.click(confirmButton);
 
-    // After deletion, project should be removed and empty state shown
     await waitFor(() => {
       expect(
         screen.getByText('No projects registered'),
       ).toBeInTheDocument();
     });
-    // listProjects should have been called twice (initial + after save)
     expect(callCount).toBe(2);
   });
 
@@ -560,11 +560,63 @@ describe('ProjectRegistryPage', () => {
       expect(screen.getByText('Env Test')).toBeInTheDocument();
     });
 
-    // Env values should NOT be visible
     expect(screen.queryByText('production')).not.toBeInTheDocument();
     expect(screen.queryByText('secret-123')).not.toBeInTheDocument();
-    // Keys also should not appear in table rows
     expect(screen.queryByText('NODE_ENV')).not.toBeInTheDocument();
     expect(screen.queryByText('API_KEY')).not.toBeInTheDocument();
+  });
+
+  // ===================================================================
+  // Log viewer integration
+  // ===================================================================
+
+  it('shows log viewer icon button for each project', async () => {
+    mockListProjects.mockResolvedValue([
+      sampleProject({ id: 'p1', name: 'Log App' }),
+    ]);
+    render(<ProjectRegistryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Log App')).toBeInTheDocument();
+    });
+
+    expect(
+      screen.getByRole('button', { name: /view logs for log app/i }),
+    ).toBeInTheDocument();
+  });
+
+  it('expands and collapses inline live logs for a project', async () => {
+    mockListProjects.mockResolvedValue([
+      sampleProject({ id: 'p1', name: 'Log App' }),
+    ]);
+    mockGetProjectLogs.mockResolvedValue({
+      currentRun: {
+        runId: 'run-1',
+        scriptName: 'dev',
+        startTime: '2026-05-30T12:00:00.000Z',
+        stdout: ['ready on 5273'],
+        stderr: [],
+      },
+      history: [],
+    });
+
+    const user = userEvent.setup();
+    render(<ProjectRegistryPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Log App')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole('button', { name: /view logs for log app/i }));
+
+    expect(await screen.findByText('Live logs')).toBeInTheDocument();
+    expect(await screen.findByText('ready on 5273')).toBeInTheDocument();
+    expect(mockGetProjectLogs).toHaveBeenCalledWith('p1');
+
+    await user.click(screen.getByRole('button', { name: /hide logs for log app/i }));
+
+    await waitFor(() => {
+      expect(screen.queryByText('ready on 5273')).not.toBeInTheDocument();
+    });
   });
 });

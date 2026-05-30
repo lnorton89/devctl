@@ -9,10 +9,14 @@
  */
 
 import { Router } from 'express';
+import { readdir, stat } from 'node:fs/promises';
+import { dirname, resolve } from 'node:path';
 import type { RegistryRepository } from '../registry/registryRepository.js';
 import type { ProjectConfig } from '../../shared/projectSchema.js';
 import type {
   LogData,
+  PackageJsonBrowserEntry,
+  PackageJsonBrowserResponse,
   ProcessStatus,
   ParseScriptsResponse,
 } from '../../shared/lifecycleSchema.js';
@@ -38,6 +42,49 @@ export function createLifecycleRouter(
   repository: RegistryRepository,
 ): Router {
   const router = Router();
+
+  router.get('/package-json-browser', async (req, res, next) => {
+    try {
+      const requestedPath = getQueryPath(req.query.path);
+      const currentPath = requestedPath ? resolve(requestedPath) : process.cwd();
+      const currentStat = await stat(currentPath);
+
+      if (!currentStat.isDirectory()) {
+        return res.status(400).json({
+          message: 'Path must be a directory.',
+        });
+      }
+
+      const dirEntries = await readdir(currentPath, { withFileTypes: true });
+      const entries: PackageJsonBrowserEntry[] = dirEntries
+        .filter((entry) => entry.isDirectory() || entry.name === 'package.json')
+        .map((entry): PackageJsonBrowserEntry => {
+          return {
+            name: entry.name,
+            path: resolve(currentPath, entry.name),
+            type: entry.isDirectory() ? 'directory' : 'packageJson',
+          };
+        })
+        .sort(compareBrowserEntries);
+
+      const parentPath = getParentPath(currentPath);
+      const response: PackageJsonBrowserResponse = {
+        path: currentPath,
+        parentPath,
+        entries,
+      };
+      res.json(response);
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+      if (err.code === 'ENOENT') {
+        return res.status(404).json({ message: 'Directory not found.' });
+      }
+      if (err.code === 'EACCES' || err.code === 'EPERM') {
+        return res.status(403).json({ message: 'Directory cannot be read.' });
+      }
+      next(error);
+    }
+  });
 
   router.post('/parse-scripts', async (req, res, next) => {
     try {
@@ -172,6 +219,13 @@ export function createLifecycleRouter(
   return router;
 }
 
+function getQueryPath(value: unknown): string | null {
+  if (Array.isArray(value)) {
+    return getQueryPath(value[0]);
+  }
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
 function getBodyPath(body: unknown): string | null {
   if (!body || typeof body !== 'object' || !('path' in body)) {
     return null;
@@ -179,6 +233,25 @@ function getBodyPath(body: unknown): string | null {
 
   const value = (body as { path?: unknown }).path;
   return typeof value === 'string' && value.trim() ? value : null;
+}
+
+function getParentPath(currentPath: string): string | null {
+  const parentPath = dirname(currentPath);
+  return parentPath === currentPath ? null : parentPath;
+}
+
+function compareBrowserEntries(
+  left: PackageJsonBrowserEntry,
+  right: PackageJsonBrowserEntry,
+): number {
+  if (left.type !== right.type) {
+    return left.type === 'directory' ? -1 : 1;
+  }
+
+  return left.name.localeCompare(right.name, undefined, {
+    numeric: true,
+    sensitivity: 'base',
+  });
 }
 
 async function loadProject(

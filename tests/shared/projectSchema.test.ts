@@ -110,11 +110,11 @@ describe('projectInputSchema — optional fields', () => {
       hostPath: '/host',
       containerPath: '/ctr',
       startCommand: 'npm start',
-      appUrl: 'http://localhost:5173',
+      appUrl: 'http://localhost:5273',
     });
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.appUrl).toBe('http://localhost:5173');
+      expect(result.data.appUrl).toBe('http://localhost:5273');
     }
   });
 

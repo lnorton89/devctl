@@ -149,6 +149,57 @@ describe('Lifecycle API', () => {
     });
   });
 
+  describe('GET /api/projects/package-json-browser', () => {
+    it('lists directories and package.json files for a directory', async () => {
+      createPackageJson(projectDir, { dev: 'vite' });
+      mkdirSync(join(projectDir, 'src'));
+      writeFileSync(join(projectDir, 'README.md'), '# ignored', 'utf8');
+
+      const app = createLifecycleTestApp(repository, processManager);
+      const res = await request(app)
+        .get('/api/projects/package-json-browser')
+        .query({ path: projectDir });
+
+      expect(res.status).toBe(200);
+      expect(res.body.path).toBe(projectDir);
+      expect(res.body.parentPath).toBe(dir);
+      expect(res.body.entries).toEqual([
+        {
+          name: 'src',
+          path: join(projectDir, 'src'),
+          type: 'directory',
+        },
+        {
+          name: 'package.json',
+          path: join(projectDir, 'package.json'),
+          type: 'packageJson',
+        },
+      ]);
+    });
+
+    it('returns 400 when the browse path is a file', async () => {
+      createPackageJson(projectDir, { dev: 'vite' });
+
+      const app = createLifecycleTestApp(repository, processManager);
+      const res = await request(app)
+        .get('/api/projects/package-json-browser')
+        .query({ path: join(projectDir, 'package.json') });
+
+      expect(res.status).toBe(400);
+      expect(res.body.message).toBe('Path must be a directory.');
+    });
+
+    it('returns 404 when the browse path is missing', async () => {
+      const app = createLifecycleTestApp(repository, processManager);
+      const res = await request(app)
+        .get('/api/projects/package-json-browser')
+        .query({ path: join(projectDir, 'missing') });
+
+      expect(res.status).toBe(404);
+      expect(res.body.message).toBe('Directory not found.');
+    });
+  });
+
   describe('POST /api/projects/:id/start', () => {
     it('validates scriptName and starts the registered project', async () => {
       createPackageJson(projectDir, { dev: 'vite' });

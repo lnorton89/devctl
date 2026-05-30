@@ -40,7 +40,7 @@ key-files:
     - path: src/server/app.ts
       purpose: "Express createApp() factory with JSON body limit and /api/health"
     - path: src/server/index.ts
-      purpose: "Server startup entry from PORT env (default 3001)"
+      purpose: "Server startup entry from PORT env (default 4002)"
   modified:
     - path: package.json
       purpose: "Added @types/react-dom devDependency"
@@ -67,7 +67,7 @@ metrics:
 
 # Phase 1 Plan 03: Minimal React and Express App Shell
 
-**Vite/React/MUI frontend shell with operational dashboard theme (UI-SPEC colors and compact typography), first-screen Projects registry placeholder, Express createApp() factory with JSON body limit and `/api/health` endpoint, and server startup entry from PORT env (default 3001).**
+**Vite/React/MUI frontend shell with operational dashboard theme (UI-SPEC colors and compact typography), first-screen Projects registry placeholder, Express createApp() factory with JSON body limit and `/api/health` endpoint, and server startup entry from PORT env (default 4002).**
 
 ## Performance
 
@@ -85,7 +85,7 @@ metrics:
 - **React root** (`src/client/main.tsx`) — wraps `<App />` in `StrictMode`, `ThemeProvider`, and `CssBaseline` per MUI theming best practices.
 - **First-screen Projects shell** (`src/client/App.tsx`) — renders "Projects" page title with disabled "Add project" button and empty-state copy ("No projects registered" / "Add a local app so devctl can manage its configuration."). No lifecycle controls, logs, health polling, port checks, or fake data.
 - **Express app factory** (`src/server/app.ts`) — `createApp()` returns a configured Express instance with `express.json({ limit: '256kb' })` (T-01-03-03 DoS mitigation) and `GET /api/health` returning `{ ok: true }`. Does not log request bodies or env values (D-06, T-01-03-01).
-- **Server startup** (`src/server/index.ts`) — reads `PORT` env (default 3001), starts Express app, logs only port on startup.
+- **Server startup** (`src/server/index.ts`) — reads `PORT` env or `--port` CLI arg (default 4002), starts Express app, logs only port on startup.
 - **Build passes** — `npm run build` (tsc + vite) and `npm test -- --run` both pass clean.
 
 ## Task Commits

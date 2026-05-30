@@ -37,9 +37,11 @@ function fullPayload(overrides: Record<string, unknown> = {}) {
     hostPath: '/home/user/test-app',
     containerPath: '/workspace/test-app',
     startCommand: 'npm run dev',
-    appUrl: 'http://localhost:5173',
-    port: 5173,
-    healthUrl: 'http://localhost:5173/health',
+    appUrl: 'http://localhost:5273',
+
+    port: 5273,
+
+    healthUrl: 'http://localhost:5273/health',
     envFilePath: '.env.local',
     env: [{ key: 'NODE_ENV', value: 'test' }],
     autostart: true,
@@ -85,9 +87,11 @@ describe('Registry Flow (integration)', () => {
     expect(createRes.body.hostPath).toBe('/home/user/test-app');
     expect(createRes.body.containerPath).toBe('/workspace/test-app');
     expect(createRes.body.startCommand).toBe('npm run dev');
-    expect(createRes.body.appUrl).toBe('http://localhost:5173');
-    expect(createRes.body.port).toBe(5173);
-    expect(createRes.body.healthUrl).toBe('http://localhost:5173/health');
+    expect(createRes.body.appUrl).toBe('http://localhost:5273');
+
+    expect(createRes.body.port).toBe(5273);
+
+    expect(createRes.body.healthUrl).toBe('http://localhost:5273/health');
     expect(createRes.body.envFilePath).toBe('.env.local');
     expect(createRes.body.env).toHaveLength(1);
     expect(createRes.body.env[0].key).toBe('NODE_ENV');

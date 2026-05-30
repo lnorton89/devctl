@@ -13,6 +13,11 @@ const DEFAULT_LOG_LINE_COUNT = 200;
 const DEFAULT_HISTORY_LIMIT = 5;
 const DEFAULT_STOP_TIMEOUT_MS = 5000;
 const DEFAULT_RESTART_DELAY_MS = 50;
+const USER_TERMINATION_SIGNALS = new Set<NodeJS.Signals | string>([
+  'SIGHUP',
+  'SIGINT',
+  'SIGTERM',
+]);
 
 export interface ProcessManager {
   start(projectId: string, scriptName: string, cwd: string): ProcessStatus;
@@ -77,11 +82,17 @@ export function createProcessManager(
       shell: true,
       cwd,
       stdio: ['ignore', 'pipe', 'pipe'],
-      detached: true,
+      detached: process.platform !== 'win32',
       windowsHide: true,
       env: process.env,
     });
     managed.child = child;
+
+    child.on('spawn', () => {
+      if (managed.state === 'starting') {
+        managed.state = 'running';
+      }
+    });
 
     child.stdout?.on('data', (chunk: Buffer | string) => {
       captureOutput(managed, 'stdout', chunk);
@@ -92,6 +103,9 @@ export function createProcessManager(
 
     child.stderr?.on('data', (chunk: Buffer | string) => {
       captureOutput(managed, 'stderr', chunk);
+      if (managed.state === 'starting') {
+        managed.state = 'running';
+      }
     });
 
     child.on('error', (error: Error) => {
@@ -106,12 +120,12 @@ export function createProcessManager(
     });
 
     child.on('exit', (exitCode: number | null, signalCode: NodeJS.Signals | null) => {
-      const failed = exitCode !== 0 || signalCode !== null;
+      const exitState = classifyExit(managed, exitCode, signalCode);
       completeRun(managed, {
-        state: failed ? 'failed' : 'stopped',
+        state: exitState,
         exitCode,
         signalCode,
-        crashed: failed,
+        crashed: exitState === 'failed',
         historyLimit,
       });
     });
@@ -268,6 +282,22 @@ function captureOutput(
     managed.currentRun.stdout = managed.stdout.toArray();
     managed.currentRun.stderr = managed.stderr.toArray();
   }
+}
+
+function classifyExit(
+  managed: ManagedProcess,
+  exitCode: number | null,
+  signalCode: NodeJS.Signals | string | null,
+): ProcessState {
+  if (
+    managed.state === 'stopping' ||
+    exitCode === 0 ||
+    (signalCode && USER_TERMINATION_SIGNALS.has(signalCode))
+  ) {
+    return 'stopped';
+  }
+
+  return 'failed';
 }
 
 interface CompleteRunOptions {

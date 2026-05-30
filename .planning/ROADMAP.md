@@ -39,7 +39,7 @@ Plans:
 
 **UI hint:** yes
 
-**Plans:** 3/6 plans executed
+**Plans:** 6/6 plans executed
 Plans:
 **Wave 1**
 
@@ -55,12 +55,12 @@ Plans:
 
 **Wave 4** *(blocked on Wave 3 completion)*
 
-- [ ] 02-04-PLAN.md - Wire lifecycle controls, status chips, polling, and errors into the registry UI.
-- [ ] 02-05-PLAN.md - Rebuild the project form around directory selection and one npm script.
+- [x] 02-04-PLAN.md - Wire lifecycle controls, status chips, polling, and errors into the registry UI.
+- [x] 02-05-PLAN.md - Rebuild the project form around directory selection and one npm script.
 
 **Wave 5** *(blocked on Wave 4 completion)*
 
-- [ ] 02-06-PLAN.md - Add the per-project log viewer and run history UI.
+- [x] 02-06-PLAN.md - Add the per-project log viewer and run history UI.
 
 **Success criteria:**
 

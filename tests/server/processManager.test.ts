@@ -111,12 +111,23 @@ describe('createProcessManager lifecycle state machine', () => {
       shell: true,
       cwd: '/workspace/app',
       stdio: ['ignore', 'pipe', 'pipe'],
-      detached: true,
+      detached: process.platform !== 'win32',
       windowsHide: true,
       env: process.env,
     });
     expect(status.state).toBe('starting');
     expect(status.currentRun?.scriptName).toBe('dev');
+  });
+
+  it('transitions from starting to running once the child process spawns', () => {
+    const child = createMockChild();
+    childProcessMocks.spawn.mockReturnValue(child);
+    const manager = createProcessManager();
+
+    manager.start('project-1', 'dev', '/workspace/app');
+    child.emit('spawn');
+
+    expect(manager.getStatus('project-1').state).toBe('running');
   });
 
   it('transitions from starting to running after the first stdout line', () => {
@@ -130,6 +141,19 @@ describe('createProcessManager lifecycle state machine', () => {
     const status = manager.getStatus('project-1');
     expect(status.state).toBe('running');
     expect(status.recentLogTail).toEqual(['ready']);
+  });
+
+  it('transitions from starting to running after the first stderr line', () => {
+    const child = createMockChild();
+    childProcessMocks.spawn.mockReturnValue(child);
+    const manager = createProcessManager();
+
+    manager.start('project-1', 'dev', '/workspace/app');
+    child.stderr.emit('data', Buffer.from('warming up\n'));
+
+    const status = manager.getStatus('project-1');
+    expect(status.state).toBe('running');
+    expect(status.recentLogTail).toEqual(['warming up']);
   });
 
   it('stop on running transitions to stopping and returns immediately', () => {
@@ -177,6 +201,39 @@ describe('createProcessManager lifecycle state machine', () => {
     expect(logs.history[0].exitCode).toBe(1);
     expect(logs.history[0].crashed).toBe(true);
     expect(logs.history[0].stderr).toEqual(['boom']);
+  });
+
+  it('records user termination signals as stopped rather than failed', () => {
+    const child = createMockChild();
+    childProcessMocks.spawn.mockReturnValue(child);
+    const manager = createProcessManager();
+
+    manager.start('project-1', 'dev', '/workspace/app');
+    child.emit('spawn');
+    child.emit('exit', null, 'SIGTERM');
+
+    const status = manager.getStatus('project-1');
+    const logs = manager.getLogs('project-1');
+    expect(status.state).toBe('stopped');
+    expect(logs.history[0].signalCode).toBe('SIGTERM');
+    expect(logs.history[0].crashed).toBe(false);
+  });
+
+  it('records exits after devctl stop as stopped even when taskkill reports a signal', () => {
+    const child = createMockChild();
+    childProcessMocks.spawn.mockReturnValue(child);
+    const manager = createProcessManager();
+
+    manager.start('project-1', 'dev', '/workspace/app');
+    child.emit('spawn');
+    manager.stop('project-1');
+    child.emit('exit', null, 'SIGKILL');
+
+    const status = manager.getStatus('project-1');
+    const logs = manager.getLogs('project-1');
+    expect(status.state).toBe('stopped');
+    expect(logs.history[0].signalCode).toBe('SIGKILL');
+    expect(logs.history[0].crashed).toBe(false);
   });
 
   it('records spawn errors as errored state', () => {

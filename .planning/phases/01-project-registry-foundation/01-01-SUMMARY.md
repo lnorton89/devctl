@@ -50,7 +50,7 @@ tech-stack:
       version: "^4.22.3"
   patterns:
     - "Strict TypeScript 6 with bundler module resolution"
-    - "Vite 8 with Express API proxy to port 3001"
+    - "Vite 8 with Express API proxy to port 4002"
     - "Vitest 4 with jsdom environment and Testing Library setup"
     - "Dual tsconfig approach: main config for source/tests, node config for build tooling"
 key-files:
@@ -64,7 +64,7 @@ key-files:
     - path: tsconfig.node.json
       purpose: "standalone composite config for Vite and Vitest configuration files"
     - path: vite.config.ts
-      purpose: "Vite React dev server with /api proxy to http://localhost:3001 (future Express dev server)"
+      purpose: "Vite React dev server with /api proxy to http://localhost:4002 (future Express dev server)"
     - path: vitest.config.ts
       purpose: "Vitest config with jsdom DOM environment, globals, Testing Library setup, and V8 coverage"
     - path: tests/setup.ts
@@ -103,7 +103,7 @@ metrics:
 
 ### Build and Dev Server Configuration
 
-- **vite.config.ts** configures the Vite dev server on port 5173 with `@vitejs/plugin-react` and proxies `/api` requests to `http://localhost:3001` (the future Express dev server).
+- **vite.config.ts** configures the Vite dev server on port 5273 with `@vitejs/plugin-react` and proxies `/api` requests to `http://localhost:4002` (the future Express dev server).
 - **vitest.config.ts** sets up jsdom as the DOM environment, enables globals, loads `tests/setup.ts`, and includes V8 coverage reporters.
 
 ### Test Infrastructure

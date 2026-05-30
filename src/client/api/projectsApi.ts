@@ -9,6 +9,12 @@
  */
 
 import type { ProjectConfig, ProjectInput, FormattedIssue } from '../../shared/projectSchema.js';
+import type {
+  ProcessStatus,
+  LogData,
+  PackageJsonBrowserResponse,
+  ParseScriptsResponse,
+} from '../../shared/lifecycleSchema.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -129,4 +135,105 @@ export async function deleteProject(id: string): Promise<void> {
     method: 'DELETE',
   });
   return handleResponse<void>(response);
+}
+
+// ---------------------------------------------------------------------------
+// Lifecycle API — Phase 2
+// ---------------------------------------------------------------------------
+
+/**
+ * Start a project's dev server.
+ *
+ * @param id  The stable project ID.
+ * @returns The current process status after starting.
+ * @throws {ApiError} On validation (400), not-found (404), or server errors.
+ */
+export async function startProject(id: string): Promise<ProcessStatus> {
+  const response = await fetch(`${API_BASE}/${encodeURIComponent(id)}/start`, {
+    method: 'POST',
+  });
+  return handleResponse<ProcessStatus>(response);
+}
+
+/**
+ * Stop a running project's dev server.
+ *
+ * @param id  The stable project ID.
+ * @returns The current process status after stopping.
+ * @throws {ApiError} On not-found (404) or server errors.
+ */
+export async function stopProject(id: string): Promise<ProcessStatus> {
+  const response = await fetch(`${API_BASE}/${encodeURIComponent(id)}/stop`, {
+    method: 'POST',
+  });
+  return handleResponse<ProcessStatus>(response);
+}
+
+/**
+ * Restart a running or failed project's dev server.
+ *
+ * @param id  The stable project ID.
+ * @returns The current process status after restarting.
+ * @throws {ApiError} On validation (400), not-found (404), or server errors.
+ */
+export async function restartProject(id: string): Promise<ProcessStatus> {
+  const response = await fetch(`${API_BASE}/${encodeURIComponent(id)}/restart`, {
+    method: 'POST',
+  });
+  return handleResponse<ProcessStatus>(response);
+}
+
+/**
+ * Get the current process status for a project.
+ *
+ * @param id  The stable project ID.
+ * @returns The current process status (state, uptime, recent log tail).
+ * @throws {ApiError} On not-found (404) or server errors.
+ */
+export async function getProjectStatus(id: string): Promise<ProcessStatus> {
+  const response = await fetch(`${API_BASE}/${encodeURIComponent(id)}/status`);
+  return handleResponse<ProcessStatus>(response);
+}
+
+/**
+ * Get log data (current run + run history) for a project.
+ *
+ * @param id  The stable project ID.
+ * @returns Log data with current run output and run history.
+ * @throws {ApiError} On not-found (404) or server errors.
+ */
+export async function getProjectLogs(id: string): Promise<LogData> {
+  const response = await fetch(`${API_BASE}/${encodeURIComponent(id)}/logs`);
+  return handleResponse<LogData>(response);
+}
+
+/**
+ * Parse package.json scripts at a given directory path.
+ *
+ * @param dirPath  Absolute path to a directory containing package.json.
+ * @returns The discovered scripts and the resolved path.
+ * @throws {ApiError} On not-found (404), invalid JSON (400), or server errors.
+ */
+export async function parseScripts(dirPath: string): Promise<ParseScriptsResponse> {
+  const response = await fetch(`${API_BASE}/parse-scripts`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: dirPath }),
+  });
+  return handleResponse<ParseScriptsResponse>(response);
+}
+
+/**
+ * Browse local directories for package.json files through the devctl server.
+ *
+ * @param dirPath  Optional directory to list; defaults to the server cwd.
+ * @returns Directory entries containing child folders and package.json files.
+ * @throws {ApiError} On missing/unreadable paths or network failure.
+ */
+export async function browsePackageJson(
+  dirPath?: string,
+): Promise<PackageJsonBrowserResponse> {
+  const query = dirPath ? `?path=${encodeURIComponent(dirPath)}` : '';
+  const response = await fetch(`${API_BASE}/package-json-browser${query}`);
+  return handleResponse<PackageJsonBrowserResponse>(response);
 }

@@ -273,9 +273,9 @@ projects:
     hostPath: "C:\\Users\\Lawrence\\Documents\\Dev\\example"
     containerPath: "/workspace/example"
     startCommand: "npm run dev"
-    appUrl: "http://localhost:5173"
-    port: 5173
-    healthUrl: "http://localhost:5173/"
+    appUrl: "http://localhost:5273"
+    port: 5273
+    healthUrl: "http://localhost:5273/"
     envFilePath: ".env.local"
     env:
       - key: "NODE_ENV"

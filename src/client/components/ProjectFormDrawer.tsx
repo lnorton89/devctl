@@ -1,119 +1,108 @@
 /**
- * Create/edit form drawer for project registry.
+ * Create/edit form drawer with directory picker and script selection.
  *
- * A Material UI Drawer containing controlled form fields for all
- * project configuration. Used for both create (empty fields) and
- * edit (pre-populated fields) workflows.
- *
- * Validates with shared Zod schema before calling the API.
- * Maps API validation issues back to field-level errors.
- *
- * Threat model:
- * - T-01-06-01: Env values render only in this form surface.
- * - T-01-06-02: Form data validated with shared schema before API mutation.
- * - T-01-06-03: No lifecycle execution controls in this form.
+ * Phase 2: Replaces the old field-by-field form with a directory path
+ * input (manual + Browse) and a script dropdown. Old fields are hidden
+ * from UI but retained in schema per D-04.
  *
  * @module ProjectFormDrawer
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Drawer,
   Box,
   Typography,
-  TextField,
   Button,
   IconButton,
   Stack,
-  Switch,
-  FormControlLabel,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
   Alert,
   Divider,
+  CircularProgress,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  List,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Breadcrumbs,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import AddCircleOutlineOutlinedIcon from '@mui/icons-material/AddCircleOutlineOutlined';
-import RemoveCircleOutlineOutlinedIcon from '@mui/icons-material/RemoveCircleOutlineOutlined';
+import DescriptionIcon from '@mui/icons-material/Description';
+import FolderIcon from '@mui/icons-material/Folder';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 
-import type { ProjectConfig, EnvVar } from '../../shared/projectSchema.js';
+import type { ProjectConfig } from '../../shared/projectSchema.js';
+import type {
+  LogData,
+  RunRecord,
+  PackageJsonBrowserEntry,
+  PackageJsonBrowserResponse,
+} from '../../shared/lifecycleSchema.js';
 import { projectInputSchema } from '../../shared/projectSchema.js';
-import { createProject, updateProject } from '../api/projectsApi.js';
+import {
+  browsePackageJson,
+  createProject,
+  updateProject,
+  parseScripts,
+  getProjectLogs,
+} from '../api/projectsApi.js';
 
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
-const HOST_PATH_HELPER = 'Path on this workstation.';
-const CONTAINER_PATH_HELPER = 'Mounted path devctl uses inside Docker.';
-const DRAWER_WIDTH = 480;
+const DRAWER_WIDTH = 560;
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface ProjectFormDrawerProps {
-  /** Whether the drawer is open. */
   open: boolean;
-  /**
-   * The project to edit, or `null`/`undefined` for create mode.
-   * When provided, fields are pre-populated and the submit label
-   * changes to "Save changes".
-   */
   project?: ProjectConfig | null;
-  /** Called when the drawer should close (cancel, close icon). */
+  processRunning?: boolean;
   onClose: () => void;
-  /** Called after a successful create or update API call. */
   onSaved: () => void;
 }
 
-// ---------------------------------------------------------------------------
-// Initialization helper
-// ---------------------------------------------------------------------------
-
 interface FormState {
   name: string;
-  hostPath: string;
-  containerPath: string;
-  startCommand: string;
-  appUrl: string;
-  port: string;
-  healthUrl: string;
-  envFilePath: string;
-  env: EnvVar[];
-  autostart: boolean;
+  directoryPath: string;
+  scriptName: string;
 }
 
-function createInitialState(project?: ProjectConfig | null): FormState {
-  return {
-    name: project?.name ?? '',
-    hostPath: project?.hostPath ?? '',
-    containerPath: project?.containerPath ?? '',
-    startCommand: project?.startCommand ?? '',
-    appUrl: project?.appUrl ?? '',
-    port: project?.port?.toString() ?? '',
-    healthUrl: project?.healthUrl ?? '',
-    envFilePath: project?.envFilePath ?? '',
-    env: project?.env ? project.env.map((e) => ({ ...e })) : [],
-    autostart: project?.autostart ?? false,
-  };
+type ScriptLoadState = 'idle' | 'loading' | 'loaded' | 'empty' | 'error';
+type BrowserLoadState = 'idle' | 'loading' | 'loaded' | 'error';
+
+function getDirectoryFromFilePath(filePath: string): string {
+  const lastSeparator = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
+  return lastSeparator > 0 ? filePath.slice(0, lastSeparator) : '';
 }
 
-// ---------------------------------------------------------------------------
-// Build submission payload from form state
-// ---------------------------------------------------------------------------
+function formatRunOutcome(run: RunRecord): string {
+  if (run.error) return `Error: ${run.error}`;
+  if (run.crashed) return 'Crashed';
+  if (run.exitCode != null) return `Exit code: ${run.exitCode}`;
+  if (run.signalCode) return `Signal: ${run.signalCode}`;
+  return 'Running';
+}
 
-function buildPayload(state: FormState) {
-  return {
-    name: state.name,
-    hostPath: state.hostPath,
-    containerPath: state.containerPath,
-    startCommand: state.startCommand,
-    appUrl: state.appUrl || undefined,
-    port: state.port ? Number(state.port) : undefined,
-    healthUrl: state.healthUrl || undefined,
-    envFilePath: state.envFilePath || undefined,
-    env: state.env,
-    autostart: state.autostart,
-  };
+function formatTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -123,90 +112,206 @@ function buildPayload(state: FormState) {
 export default function ProjectFormDrawer({
   open,
   project,
+  processRunning,
   onClose,
   onSaved,
 }: ProjectFormDrawerProps) {
   const isEdit = Boolean(project);
 
-  const [form, setForm] = useState<FormState>(() => createInitialState(project));
+  const [form, setForm] = useState<FormState>({
+    name: project?.name ?? '',
+    directoryPath: project?.hostPath ?? '',
+    scriptName: project?.scriptName ?? '',
+  });
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  // Script parsing state
+  const [scripts, setScripts] = useState<Record<string, string>>({});
+  const [scriptLoadState, setScriptLoadState] = useState<ScriptLoadState>('idle');
+  const [scriptError, setScriptError] = useState<string | null>(null);
+  const [browserOpen, setBrowserOpen] = useState(false);
+  const [browserState, setBrowserState] = useState<BrowserLoadState>('idle');
+  const [browserError, setBrowserError] = useState<string | null>(null);
+  const [browserData, setBrowserData] = useState<PackageJsonBrowserResponse | null>(null);
+
+  // Run history state (edit mode only)
+  const [logData, setLogData] = useState<LogData | null>(null);
+  const [logsLoading, setLogsLoading] = useState(false);
+  const [logsError, setLogsError] = useState<string | null>(null);
+
+  // Track initial values to detect changes
+  const initialFormRef = useRef<FormState | null>(null);
 
   // ----- Reset form when drawer opens -----
 
   useEffect(() => {
     if (open) {
-      setForm(createInitialState(project));
+      const nextForm = {
+        name: project?.name ?? '',
+        directoryPath: project?.hostPath ?? '',
+        scriptName: project?.scriptName ?? '',
+      };
+      setForm(nextForm);
+      initialFormRef.current = nextForm;
       setErrors({});
       setSaveError(null);
       setSaving(false);
+      setScripts({});
+      setScriptLoadState('idle');
+      setScriptError(null);
+      setBrowserOpen(false);
+      setBrowserState('idle');
+      setBrowserError(null);
+      setBrowserData(null);
+
+      // Auto-trigger script load in edit mode
+      if (project?.hostPath) {
+        loadScripts(project.hostPath);
+      }
+
+      // Load run history in edit mode
+      setLogData(null);
+      setLogsLoading(false);
+      setLogsError(null);
+      if (isEdit && project) {
+        void loadLogs(project.id);
+      }
     }
   }, [open, project?.id]);
 
-  // ----- Field change handler -----
+  // ----- Script loading -----
 
-  const handleChange = useCallback(
-    (field: keyof FormState, value: string | boolean | EnvVar[]) => {
-      setForm((prev) => ({ ...prev, [field]: value }));
-      // Clear the error for the changed field
-      setErrors((prev) => {
-        const next = { ...prev };
-        delete next[field];
-        return next;
-      });
-    },
-    [],
-  );
+  const loadScripts = useCallback(async (dirPath: string) => {
+    if (!dirPath.trim()) {
+      setScripts({});
+      setScriptLoadState('idle');
+      return;
+    }
 
-  // ----- Env row handlers -----
+    setScriptLoadState('loading');
+    setScriptError(null);
 
-  const handleAddEnvRow = useCallback(() => {
-    setForm((prev) => ({
-      ...prev,
-      env: [...prev.env, { key: '', value: '' }],
-    }));
+    try {
+      const result = await parseScripts(dirPath.trim());
+      const scriptEntries = result.scripts;
+      const keys = Object.keys(scriptEntries);
+      if (keys.length === 0) {
+        setScriptLoadState('empty');
+        setScripts({});
+      } else {
+        setScriptLoadState('loaded');
+        setScripts(scriptEntries);
+      }
+    } catch (err: unknown) {
+      setScriptLoadState('error');
+      setScripts({});
+      if (err instanceof Error) {
+        setScriptError(err.message);
+      } else {
+        setScriptError('Could not load scripts. Try again or enter a different path.');
+      }
+    }
   }, []);
 
-  const handleRemoveEnvRow = useCallback((index: number) => {
-    setForm((prev) => ({
-      ...prev,
-      env: prev.env.filter((_, i) => i !== index),
-    }));
+  const loadLogs = useCallback(async (projectId: string) => {
+    setLogsLoading(true);
+    setLogsError(null);
+    try {
+      const data = await getProjectLogs(projectId);
+      setLogData(data);
+    } catch (err: unknown) {
+      setLogsError(err instanceof Error ? err.message : 'Could not load logs.');
+    } finally {
+      setLogsLoading(false);
+    }
   }, []);
 
-  const handleEnvChange = useCallback(
-    (index: number, field: 'key' | 'value', value: string) => {
-      setForm((prev) => {
-        const next = prev.env.map((row, i) =>
-          i === index ? { ...row, [field]: value } : row,
-        );
-        return { ...prev, env: next };
-      });
-      // Clear env-related errors
+  // ----- Browse handler -----
+
+  const loadBrowserDirectory = useCallback(async (dirPath?: string) => {
+    setBrowserState('loading');
+    setBrowserError(null);
+
+    try {
+      const result = await browsePackageJson(dirPath);
+      setBrowserData(result);
+      setBrowserState('loaded');
+    } catch (err: unknown) {
+      setBrowserState('error');
+      if (err instanceof Error) {
+        setBrowserError(err.message);
+      } else {
+        setBrowserError('Could not read this directory.');
+      }
+    }
+  }, []);
+
+  const handleBrowse = useCallback(() => {
+    setBrowserOpen(true);
+    void loadBrowserDirectory(form.directoryPath || undefined);
+  }, [form.directoryPath, loadBrowserDirectory]);
+
+  const handleBrowserEntrySelected = useCallback(
+    (entry: PackageJsonBrowserEntry) => {
+      if (entry.type === 'directory') {
+        void loadBrowserDirectory(entry.path);
+        return;
+      }
+
+      const selectedDirectory = getDirectoryFromFilePath(entry.path);
+      setForm((prev) => ({
+        ...prev,
+        directoryPath: selectedDirectory,
+        scriptName: '',
+      }));
       setErrors((prev) => {
         const next = { ...prev };
-        Object.keys(next).forEach((key) => {
-          if (key.startsWith('env.')) delete next[key];
-        });
-        delete next.env;
+        delete next.hostPath;
         return next;
       });
+      setBrowserOpen(false);
+      void loadScripts(selectedDirectory);
     },
-    [],
+    [loadBrowserDirectory, loadScripts],
   );
 
-  // ----- Submit handler -----
+  // ----- Submit -----
 
   const handleSubmit = useCallback(async () => {
     setSaving(true);
     setSaveError(null);
     setErrors({});
 
-    // Build payload and validate
-    const payload = buildPayload(form);
-    const result = projectInputSchema.safeParse(payload);
+    if (!form.scriptName) {
+      setErrors((prev) => ({ ...prev, scriptName: 'Select a script.' }));
+      setSaving(false);
+      return;
+    }
 
+    if (!form.directoryPath) {
+      setErrors((prev) => ({ ...prev, hostPath: 'Select a package.json that exposes its directory path.' }));
+      setSaving(false);
+      return;
+    }
+
+    const payload = {
+      name: form.name,
+      hostPath: form.directoryPath,
+      containerPath: form.directoryPath,
+      startCommand: `npm run ${form.scriptName}`,
+      scriptName: form.scriptName,
+      appUrl: undefined,
+      port: undefined,
+      healthUrl: undefined,
+      envFilePath: undefined,
+      env: [],
+      autostart: false,
+    };
+
+    const result = projectInputSchema.safeParse(payload);
     if (!result.success) {
       const fieldErrors: Record<string, string> = {};
       for (const issue of result.error.issues) {
@@ -220,7 +325,6 @@ export default function ProjectFormDrawer({
       return;
     }
 
-    // Call API
     try {
       if (isEdit && project) {
         await updateProject(project.id, result.data);
@@ -229,9 +333,6 @@ export default function ProjectFormDrawer({
       }
       onSaved();
     } catch (err: unknown) {
-      // Map API validation issues to field errors
-      // Uses structural check (status, issues) instead of instanceof ApiError
-      // to work correctly across mocked module boundaries in tests.
       const apiErr = err as {
         status?: number;
         issues?: Array<{ path: string; message: string }>;
@@ -251,7 +352,6 @@ export default function ProjectFormDrawer({
         setErrors(fieldErrors);
       }
 
-      // Show save error message (generic safe message without env values)
       if (err instanceof Error) {
         setSaveError(err.message);
       } else {
@@ -265,6 +365,15 @@ export default function ProjectFormDrawer({
 
   const title = isEdit ? 'Edit project' : 'Add project';
   const submitLabel = isEdit ? 'Save changes' : 'Add project';
+
+  const scriptKeys = Object.keys(scripts);
+  const selectedScriptValue = form.scriptName && scripts[form.scriptName] ? form.scriptName : '';
+
+  const hasChanges = isEdit && initialFormRef.current
+    ? initialFormRef.current.name !== form.name ||
+      initialFormRef.current.directoryPath !== form.directoryPath ||
+      initialFormRef.current.scriptName !== form.scriptName
+    : true;
 
   return (
     <Drawer
@@ -286,7 +395,7 @@ export default function ProjectFormDrawer({
         role="dialog"
         aria-label={title}
       >
-        {/* ----- Header ----- */}
+        {/* Header */}
         <Box
           sx={{
             display: 'flex',
@@ -309,20 +418,29 @@ export default function ProjectFormDrawer({
 
         <Divider sx={{ mb: 2 }} />
 
-        {/* ----- Save error ----- */}
+        {/* Save error */}
         {saveError && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setSaveError(null)}>
             {saveError}
           </Alert>
         )}
 
-        {/* ----- Form fields ----- */}
-        <Stack spacing={2.5} sx={{ flex: 1, overflowY: 'auto', pb: 2 }}>
+        {/* Running warning */}
+        {isEdit && processRunning && (
+          <Alert severity="info" sx={{ mb: 2 }}>
+            This project is currently running. Changes will take effect on next start.
+          </Alert>
+        )}
+
+        {/* Form fields */}
+        <Stack spacing={2.5} sx={{ flex: 1, overflowY: 'auto', pt: 0.5, pb: 2 }}>
           {/* Name */}
           <TextField
             label="Name"
             value={form.name}
-            onChange={(e) => handleChange('name', e.target.value)}
+            onChange={(e) =>
+              setForm((prev) => ({ ...prev, name: e.target.value }))
+            }
             error={Boolean(errors.name)}
             helperText={errors.name ?? ' '}
             required
@@ -330,163 +448,170 @@ export default function ProjectFormDrawer({
             size="small"
           />
 
-          {/* Host path */}
-          <TextField
-            label="Host path"
-            value={form.hostPath}
-            onChange={(e) => handleChange('hostPath', e.target.value)}
-            error={Boolean(errors.hostPath)}
-            helperText={errors.hostPath ?? HOST_PATH_HELPER}
-            required
-            fullWidth
-            size="small"
-          />
-
-          {/* Container path */}
-          <TextField
-            label="Container path"
-            value={form.containerPath}
-            onChange={(e) => handleChange('containerPath', e.target.value)}
-            error={Boolean(errors.containerPath)}
-            helperText={errors.containerPath ?? CONTAINER_PATH_HELPER}
-            required
-            fullWidth
-            size="small"
-          />
-
-          {/* Start command */}
-          <TextField
-            label="Start command"
-            value={form.startCommand}
-            onChange={(e) => handleChange('startCommand', e.target.value)}
-            error={Boolean(errors.startCommand)}
-            helperText={errors.startCommand ?? ' '}
-            required
-            fullWidth
-            size="small"
-          />
-
-          {/* App URL */}
-          <TextField
-            label="App URL"
-            value={form.appUrl}
-            onChange={(e) => handleChange('appUrl', e.target.value)}
-            error={Boolean(errors.appUrl)}
-            helperText={errors.appUrl ?? ' '}
-            fullWidth
-            size="small"
-            placeholder="https://localhost:3000"
-          />
-
-          {/* Port */}
-          <TextField
-            label="Port"
-            value={form.port}
-            onChange={(e) => handleChange('port', e.target.value)}
-            error={Boolean(errors.port)}
-            helperText={errors.port ?? ' '}
-            fullWidth
-            size="small"
-            type="number"
-            placeholder="3000"
-          />
-
-          {/* Health URL */}
-          <TextField
-            label="Health URL"
-            value={form.healthUrl}
-            onChange={(e) => handleChange('healthUrl', e.target.value)}
-            error={Boolean(errors.healthUrl)}
-            helperText={errors.healthUrl ?? ' '}
-            fullWidth
-            size="small"
-            placeholder="https://localhost:3000/health"
-          />
-
-          {/* Divider for env section */}
-          <Divider sx={{ pt: 1 }} />
-
-          {/* Environment Variables */}
+          {/* Package selection */}
           <Box>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>
-              Environment variables
-            </Typography>
-
-            {form.env.map((row, index) => (
-              <Stack
-                key={index}
-                direction="row"
-                spacing={1}
-                sx={{ mb: 1, alignItems: 'flex-start' }}
-              >
-                <TextField
-                  placeholder="KEY"
-                  value={row.key}
-                  onChange={(e) => handleEnvChange(index, 'key', e.target.value)}
-                  error={Boolean(errors[`env.${index}.key`])}
-                  helperText={errors[`env.${index}.key`] ?? ' '}
-                  size="small"
-                  sx={{ width: 140 }}
-                />
-                <TextField
-                  placeholder="Value"
-                  value={row.value}
-                  onChange={(e) => handleEnvChange(index, 'value', e.target.value)}
-                  error={Boolean(errors[`env.${index}.value`])}
-                  helperText={errors[`env.${index}.value`] ?? ' '}
-                  size="small"
-                  sx={{ flex: 1 }}
-                />
-                <IconButton
-                  aria-label="Remove environment variable"
-                  onClick={() => handleRemoveEnvRow(index)}
-                  size="small"
-                  color="error"
-                  sx={{ mt: 0.5 }}
-                >
-                  <RemoveCircleOutlineOutlinedIcon fontSize="small" />
-                </IconButton>
-              </Stack>
-            ))}
-
             <Button
-              variant="text"
-              startIcon={<AddCircleOutlineOutlinedIcon />}
-              onClick={handleAddEnvRow}
-              size="small"
-              sx={{ mt: 0.5 }}
+              variant="outlined"
+              onClick={handleBrowse}
+              startIcon={<DescriptionIcon />}
+              fullWidth
+              sx={{ justifyContent: 'flex-start' }}
             >
-              Add variable
+              Select package.json
             </Button>
+            <Box
+              sx={{
+                mt: 1,
+                p: 1.25,
+                border: '1px solid',
+                borderColor: errors.hostPath ? 'error.main' : 'divider',
+                borderRadius: 1,
+                bgcolor: 'background.default',
+              }}
+            >
+              <Typography variant="caption" color="text.secondary" component="div">
+                Project directory
+              </Typography>
+              <Typography
+                data-testid="selected-directory-path"
+                sx={{
+                  mt: 0.25,
+                  fontFamily: '"Spline Sans Mono", ui-monospace, "Cascadia Code", "Fira Code", Consolas, monospace',
+                  fontSize: 13,
+                  wordBreak: 'break-all',
+                  color: form.directoryPath ? 'text.primary' : 'text.secondary',
+                }}
+              >
+                {form.directoryPath || 'No package.json selected'}
+              </Typography>
+              {errors.hostPath && (
+                <Typography variant="caption" color="error" sx={{ mt: 0.5, display: 'block' }}>
+                  {errors.hostPath}
+                </Typography>
+              )}
+            </Box>
           </Box>
 
-          {/* Env file path */}
-          <TextField
-            label="Env file path"
-            value={form.envFilePath}
-            onChange={(e) => handleChange('envFilePath', e.target.value)}
-            error={Boolean(errors.envFilePath)}
-            helperText={errors.envFilePath ?? 'Optional path to a .env file'}
-            fullWidth
-            size="small"
-            placeholder=".env.local"
-          />
+          {/* Script selection */}
+          {scriptLoadState !== 'idle' && (
+            <FormControl fullWidth size="small" error={Boolean(errors.scriptName)}>
+              <InputLabel id="script-label">Script</InputLabel>
+              <Select
+                labelId="script-label"
+                label="Script"
+                value={selectedScriptValue}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, scriptName: e.target.value }))
+                }
+                disabled={scriptLoadState !== 'loaded' || saving}
+              >
+                {scriptKeys.map((key) => (
+                  <MenuItem key={key} value={key}>
+                    {key} - {scripts[key]}
+                  </MenuItem>
+                ))}
+              </Select>
+              {errors.scriptName && (
+                <Typography variant="caption" color="error" sx={{ mt: 0.5, ml: 1.5 }}>
+                  {errors.scriptName}
+                </Typography>
+              )}
+            </FormControl>
+          )}
 
-          <Divider />
+          {/* Script loading state */}
+          {scriptLoadState === 'loading' && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <CircularProgress size={16} />
+              <Typography variant="caption" color="text.secondary">
+                Looking for scripts...
+              </Typography>
+            </Box>
+          )}
 
-          {/* Autostart */}
-          <FormControlLabel
-            control={
-              <Switch
-                checked={form.autostart}
-                onChange={(e) => handleChange('autostart', e.target.checked)}
-              />
-            }
-            label="Autostart project on devctl boot"
-          />
+          {/* Script error state */}
+          {scriptLoadState === 'error' && scriptError && (
+            <Alert severity="warning" sx={{ py: 0.5 }}>
+              <Typography variant="caption">{scriptError}</Typography>
+            </Alert>
+          )}
+
+          {/* Script empty state */}
+          {scriptLoadState === 'empty' && (
+            <Typography variant="caption" color="text.secondary">
+              No npm scripts found in this project.
+            </Typography>
+          )}
+
+          {/* Run history (edit mode only) */}
+          {isEdit && (
+            <>
+              <Divider />
+              <Box>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>
+                  Run history
+                </Typography>
+
+                {logsLoading && (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 1 }}>
+                    <CircularProgress size={16} />
+                    <Typography variant="caption" color="text.secondary">
+                      Loading history...
+                    </Typography>
+                  </Box>
+                )}
+
+                {!logsLoading && logsError && (
+                  <Typography variant="caption" color="error">
+                    {logsError}
+                  </Typography>
+                )}
+
+                {!logsLoading && !logsError && logData && logData.history.length > 0 && (
+                  <Stack spacing={0.5}>
+                    {logData.history.map((run: RunRecord) => (
+                      <Stack
+                        key={run.runId}
+                        direction={{ xs: 'column', sm: 'row' }}
+                        spacing={{ xs: 0.25, sm: 1.5 }}
+                        sx={{ color: 'text.secondary' }}
+                      >
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.primary' }}>
+                          {run.scriptName}
+                        </Typography>
+                        <Typography variant="caption" sx={{ fontFamily: '"Spline Sans Mono", ui-monospace, "Cascadia Code", "Fira Code", Consolas, monospace' }}>
+                          {formatTimestamp(run.startTime)}
+                        </Typography>
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            fontFamily: '"Spline Sans Mono", ui-monospace, "Cascadia Code", "Fira Code", Consolas, monospace',
+                            color: run.exitCode === 0 && !run.error && !run.crashed
+                              ? 'success.main'
+                              : run.exitCode == null && !run.error && !run.crashed
+                                ? 'text.secondary'
+                                : 'error.main',
+                          }}
+                        >
+                          {formatRunOutcome(run)}
+                        </Typography>
+                      </Stack>
+                    ))}
+                  </Stack>
+                )}
+
+                {!logsLoading && !logsError && (!logData || logData.history.length === 0) && (
+                  <Typography variant="caption" color="text.secondary">
+                    No previous runs.
+                  </Typography>
+                )}
+              </Box>
+            </>
+          )}
+
         </Stack>
 
-        {/* ----- Footer actions ----- */}
+        {/* Footer actions */}
         <Box
           sx={{
             display: 'flex',
@@ -503,12 +628,87 @@ export default function ProjectFormDrawer({
           <Button
             variant="contained"
             onClick={handleSubmit}
-            disabled={saving}
+            disabled={saving || scriptLoadState === 'loading' || (isEdit && !hasChanges)}
           >
-            {submitLabel}
+            {saving ? 'Saving...' : submitLabel}
           </Button>
         </Box>
       </Box>
+      <Dialog
+        open={browserOpen}
+        onClose={() => setBrowserOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>Select package.json</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={1.5}>
+            <Breadcrumbs aria-label="Current directory">
+              <Typography
+                variant="body2"
+                sx={{
+                  fontFamily: '"Spline Sans Mono", ui-monospace, "Cascadia Code", "Fira Code", Consolas, monospace',
+                  wordBreak: 'break-all',
+                }}
+              >
+                {browserData?.path ?? 'Loading...'}
+              </Typography>
+            </Breadcrumbs>
+
+            {browserError && (
+              <Alert severity="warning">{browserError}</Alert>
+            )}
+
+            {browserState === 'loading' && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, py: 2 }}>
+                <CircularProgress size={18} />
+                <Typography variant="body2" color="text.secondary">
+                  Loading directory...
+                </Typography>
+              </Box>
+            )}
+
+            {browserState !== 'loading' && browserData && (
+              <List dense disablePadding sx={{ maxHeight: 420, overflowY: 'auto' }}>
+                {browserData.parentPath && (
+                  <ListItemButton onClick={() => loadBrowserDirectory(browserData.parentPath ?? undefined)}>
+                    <ListItemIcon>
+                      <ArrowUpwardIcon fontSize="small" />
+                    </ListItemIcon>
+                    <ListItemText primary="Parent directory" />
+                  </ListItemButton>
+                )}
+                {browserData.entries.map((entry) => (
+                  <ListItemButton
+                    key={`${entry.type}:${entry.path}`}
+                    onClick={() => handleBrowserEntrySelected(entry)}
+                  >
+                    <ListItemIcon>
+                      {entry.type === 'directory' ? (
+                        <FolderIcon fontSize="small" />
+                      ) : (
+                        <DescriptionIcon fontSize="small" />
+                      )}
+                    </ListItemIcon>
+                    <ListItemText
+                      primary={entry.name}
+                      secondary={entry.type === 'packageJson' ? entry.path : undefined}
+                    />
+                  </ListItemButton>
+                ))}
+                {browserData.entries.length === 0 && (
+                  <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+                    No folders or package.json files in this directory.
+                  </Typography>
+                )}
+              </List>
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBrowserOpen(false)}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
     </Drawer>
   );
 }

@@ -2,7 +2,7 @@
  * devctl server startup entry point.
  *
  * Starts the Express app on the port specified by the `PORT` environment
- * variable (defaulting to 3001).
+ * variable, the `--port` CLI argument, or defaults to 4002.
  *
  * @module index
  */
@@ -13,7 +13,9 @@ import { createApp } from './app';
 // Configuration
 // ---------------------------------------------------------------------------
 
-const PORT = parseInt(process.env.PORT ?? '3001', 10);
+const cliPortIndex = process.argv.indexOf('--port');
+const cliPort = cliPortIndex !== -1 ? parseInt(process.argv[cliPortIndex + 1], 10) : NaN;
+const PORT = cliPort || parseInt(process.env.PORT ?? '4002', 10);
 
 // ---------------------------------------------------------------------------
 // Start

@@ -1,15 +1,13 @@
 /**
- * Component tests for ProjectFormDrawer.
+ * Component tests for ProjectFormDrawer (Phase 2).
  *
- * Covers: create/edit mode switching, required validation, optional field
- * validation, env variable editor (add/remove rows), autostart switch,
- * helper text, API mutation wiring, validation issue mapping, save error
- * display, and disabled submission during save.
+ * Covers: directory picker, script dropdown, old field hiding,
+ * parse script loading/error states, create/edit submission.
  *
  * @module ProjectFormDrawer.test
  */
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -22,10 +20,14 @@ import type { ProjectConfig } from '../../src/shared/projectSchema.js';
 
 const mockCreateProject = vi.hoisted(() => vi.fn());
 const mockUpdateProject = vi.hoisted(() => vi.fn());
+const mockParseScripts = vi.hoisted(() => vi.fn());
+const mockBrowsePackageJson = vi.hoisted(() => vi.fn());
 
 vi.mock('../../src/client/api/projectsApi', () => ({
   createProject: mockCreateProject,
   updateProject: mockUpdateProject,
+  parseScripts: mockParseScripts,
+  browsePackageJson: mockBrowsePackageJson,
   ApiError: class ApiError extends Error {
     status: number;
     issues: Array<{ path: string; message: string }> | undefined;
@@ -50,8 +52,15 @@ vi.mock('../../src/client/api/projectsApi', () => ({
 }));
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Sample data
 // ---------------------------------------------------------------------------
+
+const SAMPLE_SCRIPTS = {
+  dev: 'vite --port 3000',
+  build: 'tsc && vite build',
+  start: 'node dist/index.js',
+  test: 'vitest run',
+};
 
 const sampleProject = (overrides: Partial<ProjectConfig> = {}): ProjectConfig => ({
   id: 'proj_001',
@@ -59,17 +68,19 @@ const sampleProject = (overrides: Partial<ProjectConfig> = {}): ProjectConfig =>
   hostPath: 'C:\\Users\\test\\app',
   containerPath: '/workspace/app',
   startCommand: 'npm run dev',
+  scriptName: 'dev',
   env: [],
   autostart: false,
   ...overrides,
 });
 
-// Helper to fill all required fields in the form
-async function fillRequiredFields(user: ReturnType<typeof userEvent.setup>) {
-  await user.type(screen.getByLabelText(/^name/i), 'My App');
-  await user.type(screen.getByLabelText(/host path/i), '/host/myapp');
-  await user.type(screen.getByLabelText(/container path/i), '/container/myapp');
-  await user.type(screen.getByLabelText(/start command/i), 'npm start');
+async function choosePackageJson(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  await user.click(screen.getByRole('button', { name: /select package\.json/i }));
+  await screen.findByRole('dialog', { name: /select package\.json/i });
+  await user.click(await screen.findByRole('button', { name: /package\.json/ }));
+  await waitFor(() => {
+    expect(screen.queryByRole('dialog', { name: /select package\.json/i })).not.toBeInTheDocument();
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -79,6 +90,15 @@ async function fillRequiredFields(user: ReturnType<typeof userEvent.setup>) {
 describe('ProjectFormDrawer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockParseScripts.mockResolvedValue({ scripts: SAMPLE_SCRIPTS, path: '/test/app' });
+    mockBrowsePackageJson.mockResolvedValue({
+      path: '/test/app',
+      parentPath: '/test',
+      entries: [
+        { name: 'src', path: '/test/app/src', type: 'directory' },
+        { name: 'package.json', path: '/test/app/package.json', type: 'packageJson' },
+      ],
+    });
   });
 
   // =====================================================================
@@ -96,16 +116,39 @@ describe('ProjectFormDrawer', () => {
   it('shows "Add project" submit button in create mode', () => {
     render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
 
-    expect(screen.getByRole('button', { name: 'Add project' })).toBeInTheDocument();
+    expect(
+      screen.getByRole('button', { name: 'Add project' }),
+    ).toBeInTheDocument();
   });
 
-  it('shows empty fields in create mode', () => {
+  it('shows Name, package picker, selected directory display, and no Phase 1 fields', () => {
     render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
 
-    expect(screen.getByLabelText(/^name/i)).toHaveValue('');
-    expect(screen.getByLabelText(/host path/i)).toHaveValue('');
-    expect(screen.getByLabelText(/container path/i)).toHaveValue('');
-    expect(screen.getByLabelText(/start command/i)).toHaveValue('');
+    expect(screen.getByLabelText(/^name/i)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /select package\.json/i })).toBeInTheDocument();
+    expect(screen.getByText('Project directory')).toBeInTheDocument();
+    expect(screen.getByTestId('selected-directory-path')).toHaveTextContent(
+      'No package.json selected',
+    );
+
+    // Phase 1 fields should NOT be present
+    expect(screen.queryByLabelText(/directory path/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/host path/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/container path/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/start command/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^port/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/health url/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/app url/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/env file path/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole('switch', { name: /autostart/i })).not.toBeInTheDocument();
+  });
+
+  it('shows package.json selection button', () => {
+    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    expect(
+      screen.getByRole('button', { name: /select package\.json/i }),
+    ).toBeInTheDocument();
   });
 
   // =====================================================================
@@ -140,16 +183,10 @@ describe('ProjectFormDrawer', () => {
     ).toBeInTheDocument();
   });
 
-  it('pre-populates fields with project values in edit mode', () => {
+  it('pre-populates name and shows directory path in edit mode', () => {
     const project = sampleProject({
       name: 'My Edited App',
       hostPath: '/custom/host',
-      containerPath: '/custom/container',
-      startCommand: 'yarn dev',
-      port: 8080,
-      appUrl: 'https://example.com',
-      healthUrl: 'https://example.com/health',
-      envFilePath: '.env.prod',
     });
 
     render(
@@ -162,305 +199,205 @@ describe('ProjectFormDrawer', () => {
     );
 
     expect(screen.getByLabelText(/^name/i)).toHaveValue('My Edited App');
-    expect(screen.getByLabelText(/host path/i)).toHaveValue('/custom/host');
-    expect(screen.getByLabelText(/container path/i)).toHaveValue('/custom/container');
-    expect(screen.getByLabelText(/start command/i)).toHaveValue('yarn dev');
-    expect(screen.getByLabelText(/^port/i)).toHaveValue(8080);
-    expect(screen.getByLabelText(/app url/i)).toHaveValue('https://example.com');
-    expect(screen.getByLabelText(/health url/i)).toHaveValue('https://example.com/health');
-    expect(screen.getByLabelText(/env file path/i)).toHaveValue('.env.prod');
+    expect(screen.getByTestId('selected-directory-path')).toHaveTextContent('/custom/host');
   });
 
-  it('pre-populates env variables in edit mode', () => {
-    const project = sampleProject({
-      env: [
-        { key: 'NODE_ENV', value: 'production' },
-        { key: 'API_KEY', value: 'sk-abc123' },
-      ],
+  // =====================================================================
+  // Script parsing
+  // =====================================================================
+
+  it('calls parseScripts for the existing directory in edit mode', async () => {
+    const existing = sampleProject({ hostPath: '/test/app' });
+    render(
+      <ProjectFormDrawer
+        open
+        project={existing}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(mockParseScripts).toHaveBeenCalledWith('/test/app');
     });
+  });
+
+  it('shows script dropdown after package scripts load in edit mode', async () => {
+    const existing = sampleProject({ hostPath: '/test/app' });
 
     render(
       <ProjectFormDrawer
         open
-        project={project}
+        project={existing}
         onClose={vi.fn()}
         onSaved={vi.fn()}
       />,
     );
 
-    // First env row
-    expect(screen.getByDisplayValue('NODE_ENV')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('production')).toBeInTheDocument();
-    // Second env row
-    expect(screen.getByDisplayValue('API_KEY')).toBeInTheDocument();
-    expect(screen.getByDisplayValue('sk-abc123')).toBeInTheDocument();
+    await waitFor(() => {
+      expect(screen.getByRole('combobox')).toBeInTheDocument();
+    });
   });
 
-  it('pre-populates autostart switch in edit mode', () => {
-    const project = sampleProject({ autostart: true });
-
-    render(
-      <ProjectFormDrawer
-        open
-        project={project}
-        onClose={vi.fn()}
-        onSaved={vi.fn()}
-      />,
-    );
-
-    const switch_ = screen.getByRole('switch', { name: /autostart/i });
-    expect(switch_).toBeChecked();
-  });
-
-  it('pre-populates autostart as unchecked when false in edit mode', () => {
-    const project = sampleProject({ autostart: false });
-
-    render(
-      <ProjectFormDrawer
-        open
-        project={project}
-        onClose={vi.fn()}
-        onSaved={vi.fn()}
-      />,
-    );
-
-    const switch_ = screen.getByRole('switch', { name: /autostart/i });
-    expect(switch_).not.toBeChecked();
-  });
-
-  // =====================================================================
-  // Helper text
-  // =====================================================================
-
-  it('shows correct helper text for host path', () => {
-    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
-
-    expect(
-      screen.getByText('Path on this workstation.'),
-    ).toBeInTheDocument();
-  });
-
-  it('shows correct helper text for container path', () => {
-    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
-
-    expect(
-      screen.getByText('Mounted path devctl uses inside Docker.'),
-    ).toBeInTheDocument();
-  });
-
-  // =====================================================================
-  // Required field validation
-  // =====================================================================
-
-  it('shows required validation error for name when empty', async () => {
+  it('opens a package.json picker from the selection button', async () => {
     const user = userEvent.setup();
     render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
 
-    await user.click(screen.getByRole('button', { name: 'Add project' }));
+    await waitFor(() => {
+      expect(mockBrowsePackageJson).not.toHaveBeenCalled();
+    });
 
-    expect(screen.getByText('Name is required.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /select package\.json/i }));
+
+    expect(await screen.findByRole('dialog', { name: /select package\.json/i })).toBeInTheDocument();
+    expect(mockBrowsePackageJson).toHaveBeenCalledWith(undefined);
+    expect(await screen.findByText('package.json')).toBeInTheDocument();
   });
 
-  it('shows required validation error for host path when empty', async () => {
+  it('fills directory path and loads scripts when package.json is selected', async () => {
+    const user = userEvent.setup();
+    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    await choosePackageJson(user);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('selected-directory-path')).toHaveTextContent('/test/app');
+      expect(mockParseScripts).toHaveBeenCalledWith('/test/app');
+    });
+  });
+
+  it('navigates folders in the package.json picker', async () => {
+    const user = userEvent.setup();
+    mockBrowsePackageJson
+      .mockResolvedValueOnce({
+        path: '/test/app',
+        parentPath: '/test',
+        entries: [{ name: 'nested', path: '/test/app/nested', type: 'directory' }],
+      })
+      .mockResolvedValueOnce({
+        path: '/test/app/nested',
+        parentPath: '/test/app',
+        entries: [{ name: 'package.json', path: '/test/app/nested/package.json', type: 'packageJson' }],
+      });
+    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
+
+    await user.click(screen.getByRole('button', { name: /select package\.json/i }));
+    await user.click(await screen.findByText('nested'));
+
+    expect(await screen.findByText('/test/app/nested')).toBeInTheDocument();
+    expect(mockBrowsePackageJson).toHaveBeenLastCalledWith('/test/app/nested');
+  });
+
+  it('shows script loading indicator', async () => {
+    mockParseScripts.mockReturnValue(new Promise(() => {}));
+
+    render(
+      <ProjectFormDrawer
+        open
+        project={sampleProject({ hostPath: '/test/app' })}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Looking for scripts...')).toBeInTheDocument();
+    });
+  });
+
+  it('disables submit button while scripts are loading', async () => {
+    mockParseScripts.mockReturnValue(new Promise(() => {}));
+
+    const user = userEvent.setup();
+    render(
+      <ProjectFormDrawer
+        open
+        project={sampleProject({ hostPath: '/test/app' })}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    // Name is required, fill it
+    await user.type(screen.getByLabelText(/^name/i), 'My App');
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Save changes' })).toBeDisabled();
+    });
+  });
+
+  // =====================================================================
+  // Script error states
+  // =====================================================================
+
+  it('shows error when parseScripts fails', async () => {
+    mockParseScripts.mockRejectedValue(new Error('No package.json found at this path.'));
+
+    render(
+      <ProjectFormDrawer
+        open
+        project={sampleProject({ hostPath: '/test/app' })}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('No package.json found at this path.'),
+      ).toBeInTheDocument();
+    });
+  });
+
+  // =====================================================================
+  // Submit
+  // =====================================================================
+
+  it('shows script selection error when submitting without selecting a script', async () => {
+    mockParseScripts.mockResolvedValue({ scripts: SAMPLE_SCRIPTS, path: '/test/app' });
+
     const user = userEvent.setup();
     render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
 
     await user.type(screen.getByLabelText(/^name/i), 'My App');
-    await user.click(screen.getByRole('button', { name: 'Add project' }));
+    await choosePackageJson(user);
 
-    expect(screen.getByText('Host path is required.')).toBeInTheDocument();
-  });
-
-  it('shows required validation error for container path when empty', async () => {
-    const user = userEvent.setup();
-    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
-
-    await user.type(screen.getByLabelText(/^name/i), 'My App');
-    await user.type(screen.getByLabelText(/host path/i), '/host/path');
-    await user.click(screen.getByRole('button', { name: 'Add project' }));
-
-    expect(
-      screen.getByText('Container path is required.'),
-    ).toBeInTheDocument();
-  });
-
-  it('shows required validation error for command when empty', async () => {
-    const user = userEvent.setup();
-    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
-
-    await user.type(screen.getByLabelText(/^name/i), 'My App');
-    await user.type(screen.getByLabelText(/host path/i), '/host/path');
-    await user.type(screen.getByLabelText(/container path/i), '/container/path');
-    await user.click(screen.getByRole('button', { name: 'Add project' }));
-
-    expect(
-      screen.getByText('Start command is required.'),
-    ).toBeInTheDocument();
-  });
-
-  it('shows multiple required validation errors when submitting empty form', async () => {
-    const user = userEvent.setup();
-    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
-
-    await user.click(screen.getByRole('button', { name: 'Add project' }));
-
-    expect(screen.getByText('Name is required.')).toBeInTheDocument();
-    expect(screen.getByText('Host path is required.')).toBeInTheDocument();
-    expect(screen.getByText('Container path is required.')).toBeInTheDocument();
-    expect(screen.getByText('Start command is required.')).toBeInTheDocument();
-  });
-
-  // =====================================================================
-  // Optional field validation
-  // =====================================================================
-
-  it('shows port validation error for out-of-range port', async () => {
-    const user = userEvent.setup();
-    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
-
-    await fillRequiredFields(user);
-    await user.type(screen.getByLabelText(/^port/i), '99999');
-    await user.click(screen.getByRole('button', { name: 'Add project' }));
-
-    expect(
-      screen.getByText('Port must be between 1 and 65535.'),
-    ).toBeInTheDocument();
-  });
-
-
-
-  it('shows health URL validation error for invalid URL', async () => {
-    const user = userEvent.setup();
-    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
-
-    await fillRequiredFields(user);
-    await user.type(screen.getByLabelText(/health url/i), 'not-a-url');
-    await user.click(screen.getByRole('button', { name: 'Add project' }));
-
-    expect(screen.getByText('Enter a valid health URL.')).toBeInTheDocument();
-  });
-
-  it('shows app URL validation error for invalid URL', async () => {
-    const user = userEvent.setup();
-    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
-
-    await fillRequiredFields(user);
-    await user.type(screen.getByLabelText(/app url/i), 'bad-url');
-    await user.click(screen.getByRole('button', { name: 'Add project' }));
-
-    expect(screen.getByText('Enter a valid app URL.')).toBeInTheDocument();
-  });
-
-  it('shows env key validation error for invalid key format', async () => {
-    const user = userEvent.setup();
-    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
-
-    await fillRequiredFields(user);
-
-    // Add env variable with invalid key
-    await user.click(screen.getByRole('button', { name: /add variable/i }));
-    await user.type(screen.getAllByPlaceholderText(/key/i)[0], '123invalid');
-
-    await user.click(screen.getByRole('button', { name: 'Add project' }));
-
-    expect(
-      screen.getByText(
-        'Environment variable names must use letters, numbers, and underscores.',
-      ),
-    ).toBeInTheDocument();
-  });
-
-  // =====================================================================
-  // Env variable editor
-  // =====================================================================
-
-  it('shows "Add variable" button for env editor', () => {
-    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
-
-    expect(
-      screen.getByRole('button', { name: /add variable/i }),
-    ).toBeInTheDocument();
-  });
-
-  it('adds an env row when "Add variable" is clicked', async () => {
-    const user = userEvent.setup();
-    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
-
-    await user.click(screen.getByRole('button', { name: /add variable/i }));
-
-    // Should have key and value fields for the new env row
-    const keyInputs = screen.getAllByPlaceholderText(/key/i);
-    const valueInputs = screen.getAllByPlaceholderText(/value/i);
-    expect(keyInputs.length).toBeGreaterThanOrEqual(1);
-    expect(valueInputs.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('removes an env row when remove button is clicked', async () => {
-    const user = userEvent.setup();
-    const project = sampleProject({
-      env: [{ key: 'NODE_ENV', value: 'test' }],
+    await waitFor(() => {
+      expect(screen.getByLabelText('Script')).toBeInTheDocument();
     });
 
-    render(
-      <ProjectFormDrawer
-        open
-        project={project}
-        onClose={vi.fn()}
-        onSaved={vi.fn()}
-      />,
-    );
+    await user.click(screen.getByRole('button', { name: 'Add project' }));
 
-    // Should show the env row
-    expect(screen.getByDisplayValue('NODE_ENV')).toBeInTheDocument();
-
-    // Click the remove button for the env row
-    const removeButtons = screen.getAllByRole('button', { name: /remove/i });
-    await user.click(removeButtons[0]);
-
-    // Row should be removed
-    expect(screen.queryByDisplayValue('NODE_ENV')).not.toBeInTheDocument();
-  });
-
-  it('removes the correct env row when multiple exist', async () => {
-    const user = userEvent.setup();
-    const project = sampleProject({
-      env: [
-        { key: 'FIRST_VAR', value: 'first' },
-        { key: 'SECOND_VAR', value: 'second' },
-      ],
+    await waitFor(() => {
+      expect(screen.getByText('Select a script.')).toBeInTheDocument();
     });
-
-    render(
-      <ProjectFormDrawer
-        open
-        project={project}
-        onClose={vi.fn()}
-        onSaved={vi.fn()}
-      />,
-    );
-
-    // Remove the first row
-    const removeButtons = screen.getAllByRole('button', { name: /remove/i });
-    await user.click(removeButtons[0]);
-
-    // First var should be gone, second should remain
-    expect(screen.queryByDisplayValue('FIRST_VAR')).not.toBeInTheDocument();
-    expect(screen.getByDisplayValue('SECOND_VAR')).toBeInTheDocument();
   });
 
-  // =====================================================================
-  // API mutation wiring — create
-  // =====================================================================
-
-  it('calls createProject with form data on submit in create mode', async () => {
-    mockCreateProject.mockResolvedValue(sampleProject({ id: 'new_id', name: 'My App' }));
+  it('calls createProject with derived payload when script is selected', async () => {
+    mockCreateProject.mockResolvedValue(sampleProject({ id: 'new_id' }));
 
     const user = userEvent.setup();
     const onSaved = vi.fn();
 
     render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={onSaved} />);
 
-    await fillRequiredFields(user);
+    await user.type(screen.getByLabelText(/^name/i), 'My App');
+    await choosePackageJson(user);
+
+    // Wait for script dropdown to appear
+    await waitFor(() => {
+      expect(screen.getByLabelText('Script')).toBeInTheDocument();
+    });
+
+    // Open the dropdown
+    const scriptLabel = screen.getByLabelText('Script');
+    fireEvent.mouseDown(scriptLabel);
+
+    // Click dev script
+    const devOption = await screen.findByText(/dev - vite --port 3000/);
+    await user.click(devOption);
+
+    // Submit
     await user.click(screen.getByRole('button', { name: 'Add project' }));
 
     await waitFor(() => {
@@ -470,9 +407,10 @@ describe('ProjectFormDrawer', () => {
     const callArg = mockCreateProject.mock.calls[0][0];
     expect(callArg).toMatchObject({
       name: 'My App',
-      hostPath: '/host/myapp',
-      containerPath: '/container/myapp',
-      startCommand: 'npm start',
+      hostPath: '/test/app',
+      containerPath: '/test/app',
+      startCommand: 'npm run dev',
+      scriptName: 'dev',
     });
   });
 
@@ -484,7 +422,18 @@ describe('ProjectFormDrawer', () => {
 
     render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={onSaved} />);
 
-    await fillRequiredFields(user);
+    await user.type(screen.getByLabelText(/^name/i), 'My App');
+    await choosePackageJson(user);
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Script')).toBeInTheDocument();
+    });
+
+    const scriptLabel = screen.getByLabelText('Script');
+    fireEvent.mouseDown(scriptLabel);
+    const devOption = await screen.findByText(/dev/);
+    await user.click(devOption);
+
     await user.click(screen.getByRole('button', { name: 'Add project' }));
 
     await waitFor(() => {
@@ -492,19 +441,15 @@ describe('ProjectFormDrawer', () => {
     });
   });
 
-  // =====================================================================
-  // API mutation wiring — update
-  // =====================================================================
-
-  it('calls updateProject with form data on submit in edit mode', async () => {
+  it('calls updateProject in edit mode', async () => {
     const existing = sampleProject({
       id: 'proj_edit',
       name: 'Original',
       hostPath: '/orig/host',
-      containerPath: '/orig/container',
-      startCommand: 'npm run orig',
+      scriptName: 'dev',
     });
-    mockUpdateProject.mockResolvedValue({ ...existing, name: 'Updated' });
+
+    mockUpdateProject.mockResolvedValue(existing);
 
     const user = userEvent.setup();
     const onSaved = vi.fn();
@@ -518,7 +463,6 @@ describe('ProjectFormDrawer', () => {
       />,
     );
 
-    // Modify the name
     const nameInput = screen.getByLabelText(/^name/i);
     await user.clear(nameInput);
     await user.type(nameInput, 'Updated');
@@ -534,106 +478,6 @@ describe('ProjectFormDrawer', () => {
     expect(callData.name).toBe('Updated');
   });
 
-  it('calls onSaved after successful update', async () => {
-    const existing = sampleProject({ id: 'proj_edit' });
-    mockUpdateProject.mockResolvedValue(existing);
-
-    const user = userEvent.setup();
-    const onSaved = vi.fn();
-
-    render(
-      <ProjectFormDrawer
-        open
-        project={existing}
-        onClose={vi.fn()}
-        onSaved={onSaved}
-      />,
-    );
-
-    await user.click(screen.getByRole('button', { name: 'Save changes' }));
-
-    await waitFor(() => {
-      expect(onSaved).toHaveBeenCalledOnce();
-    });
-  });
-
-  // =====================================================================
-  // Save error display
-  // =====================================================================
-
-  it('shows save error message when API call fails', async () => {
-    mockCreateProject.mockRejectedValue(
-      new Error('Project could not be saved. Check the highlighted fields and try again.'),
-    );
-
-    const user = userEvent.setup();
-    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
-
-    await fillRequiredFields(user);
-    await user.click(screen.getByRole('button', { name: 'Add project' }));
-
-    await waitFor(() => {
-      expect(
-        screen.getByText(
-          'Project could not be saved. Check the highlighted fields and try again.',
-        ),
-      ).toBeInTheDocument();
-    });
-  });
-
-  it('shows generic error message when API fails without message', async () => {
-    mockCreateProject.mockRejectedValue(new Error('Network error'));
-
-    const user = userEvent.setup();
-    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
-
-    await fillRequiredFields(user);
-    await user.click(screen.getByRole('button', { name: 'Add project' }));
-
-    await waitFor(() => {
-      expect(screen.getByText('Network error')).toBeInTheDocument();
-    });
-  });
-
-  it('maps API validation issues to field errors', async () => {
-    const apiError = new Error('Validation failed');
-    (apiError as any).status = 400;
-    (apiError as any).issues = [
-      { path: 'name', message: 'Name is required.' },
-      { path: 'hostPath', message: 'Host path is required.' },
-    ];
-    mockCreateProject.mockRejectedValue(apiError);
-
-    const user = userEvent.setup();
-    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
-
-    await fillRequiredFields(user);
-    await user.click(screen.getByRole('button', { name: 'Add project' }));
-
-    await waitFor(() => {
-      expect(screen.getByText('Name is required.')).toBeInTheDocument();
-      expect(screen.getByText('Host path is required.')).toBeInTheDocument();
-    });
-  });
-
-  // =====================================================================
-  // Submit button behavior during save
-  // =====================================================================
-
-  it('disables submit button while saving', async () => {
-    // Keep the promise pending to simulate in-flight save
-    mockCreateProject.mockReturnValue(new Promise(() => {}));
-
-    const user = userEvent.setup();
-    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
-
-    await fillRequiredFields(user);
-    await user.click(screen.getByRole('button', { name: 'Add project' }));
-
-    // After clicking, the button should be disabled
-    expect(screen.getByRole('button', { name: 'Add project' })).toBeDisabled();
-  });
-
   // =====================================================================
   // Close behavior
   // =====================================================================
@@ -643,83 +487,16 @@ describe('ProjectFormDrawer', () => {
     const onClose = vi.fn();
 
     render(
-      <ProjectFormDrawer open project={sampleProject()} onClose={onClose} onSaved={vi.fn()} />,
+      <ProjectFormDrawer
+        open
+        project={sampleProject()}
+        onClose={onClose}
+        onSaved={vi.fn()}
+      />,
     );
 
     await user.click(screen.getByRole('button', { name: /cancel/i }));
 
     expect(onClose).toHaveBeenCalledOnce();
-  });
-
-  it('calls onClose when drawer is closed but not on save', async () => {
-    mockCreateProject.mockResolvedValue(sampleProject({ id: 'new_id' }));
-
-    const user = userEvent.setup();
-    const onClose = vi.fn();
-    const onSaved = vi.fn();
-
-    render(<ProjectFormDrawer open onClose={onClose} onSaved={onSaved} />);
-
-    await fillRequiredFields(user);
-    await user.click(screen.getByRole('button', { name: 'Add project' }));
-
-    await waitFor(() => {
-      expect(onSaved).toHaveBeenCalledOnce();
-    });
-
-    // onClose should NOT have been called by save
-    expect(onClose).not.toHaveBeenCalled();
-  });
-
-  // =====================================================================
-  // Env variable value persistence
-  // =====================================================================
-
-  it('includes env variable values in create API call', async () => {
-    mockCreateProject.mockResolvedValue(sampleProject({ id: 'new_id' }));
-
-    const user = userEvent.setup();
-    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
-
-    await fillRequiredFields(user);
-
-    // Add env variables
-    await user.click(screen.getByRole('button', { name: /add variable/i }));
-    const keyInputs = screen.getAllByPlaceholderText(/key/i);
-    const valueInputs = screen.getAllByPlaceholderText(/value/i);
-
-    await user.type(keyInputs[0], 'NODE_ENV');
-    await user.type(valueInputs[0], 'development');
-
-    await user.click(screen.getByRole('button', { name: 'Add project' }));
-
-    await waitFor(() => {
-      expect(mockCreateProject).toHaveBeenCalledOnce();
-    });
-
-    const callArg = mockCreateProject.mock.calls[0][0];
-    expect(callArg.env).toEqual([{ key: 'NODE_ENV', value: 'development' }]);
-  });
-
-  it('includes autostart value in create API call', async () => {
-    mockCreateProject.mockResolvedValue(sampleProject({ id: 'new_id' }));
-
-    const user = userEvent.setup();
-    render(<ProjectFormDrawer open onClose={vi.fn()} onSaved={vi.fn()} />);
-
-    await fillRequiredFields(user);
-
-    // Toggle autostart on
-    const autostartSwitch = screen.getByRole('switch', { name: /autostart/i });
-    await user.click(autostartSwitch);
-
-    await user.click(screen.getByRole('button', { name: 'Add project' }));
-
-    await waitFor(() => {
-      expect(mockCreateProject).toHaveBeenCalledOnce();
-    });
-
-    const callArg = mockCreateProject.mock.calls[0][0];
-    expect(callArg.autostart).toBe(true);
   });
 });

@@ -30,7 +30,7 @@ npm run dev
 Or start them separately:
 
 ```bash
-npm run dev:client   # Vite dev server on port 5173
+npm run dev:client   # Vite dev server on port 5273
 npm run dev:server   # Express API with tsx watch
 ```
 

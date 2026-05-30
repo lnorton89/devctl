@@ -53,3 +53,19 @@ export const parseScriptsResponseSchema = z.object({
 });
 
 export type ParseScriptsResponse = z.output<typeof parseScriptsResponseSchema>;
+
+export const packageJsonBrowserEntrySchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  type: z.enum(['directory', 'packageJson']),
+});
+
+export type PackageJsonBrowserEntry = z.output<typeof packageJsonBrowserEntrySchema>;
+
+export const packageJsonBrowserResponseSchema = z.object({
+  path: z.string(),
+  parentPath: z.string().nullable(),
+  entries: z.array(packageJsonBrowserEntrySchema),
+});
+
+export type PackageJsonBrowserResponse = z.output<typeof packageJsonBrowserResponseSchema>;
