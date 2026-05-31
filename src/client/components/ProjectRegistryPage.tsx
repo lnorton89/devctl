@@ -24,6 +24,7 @@ import type { ProjectConfig } from '../../shared/projectSchema.js';
 import type { ProcessState, ProcessStatus, HealthStatus } from '../../shared/lifecycleSchema.js';
 import {
   listProjects,
+  updateProject,
   startProject,
   stopProject,
   restartProject,
@@ -305,6 +306,49 @@ export default function ProjectRegistryPage() {
     }
   }, [startPolling]);
 
+  // ----- Autostart toggle -----
+
+  const handleToggleAutostart = useCallback(
+    async (project: ProjectConfig, autostart: boolean) => {
+      // 1. Optimistic update: immediately update local projects array
+      setProjects((prev) =>
+        prev.map((p) =>
+          p.id === project.id ? { ...p, autostart } : p,
+        ),
+      );
+
+      // 2. Clear previous lifecycle error
+      setLifecycleError(null);
+
+      // 3. Call API
+      try {
+        const updated = await updateProject(project.id, {
+          ...project,
+          autostart,
+        });
+        // Use server response to confirm state
+        setProjects((prev) =>
+          prev.map((p) =>
+            p.id === updated.id ? updated : p,
+          ),
+        );
+      } catch (err: unknown) {
+        // 4. Rollback optimistic update on failure
+        setProjects((prev) =>
+          prev.map((p) =>
+            p.id === project.id ? { ...p, autostart: !autostart } : p,
+          ),
+        );
+        const message =
+          err instanceof Error ? err.message : 'Unknown error';
+        setLifecycleError(
+          `Could not update autostart for ${project.name}. ${message}`,
+        );
+      }
+    },
+    [],
+  );
+
   // ----- Form drawer state -----
 
   const [formProject, setFormProject] = useState<ProjectConfig | null | undefined>(undefined);
@@ -441,6 +485,7 @@ export default function ProjectRegistryPage() {
             onOpenLogs={handleOpenLogs}
             expandedLogProjectId={expandedLogProjectId}
             healthStatuses={healthStatuses}
+            onToggleAutostart={handleToggleAutostart}
           />
         ) : (
           <ProjectTable
@@ -455,6 +500,7 @@ export default function ProjectRegistryPage() {
             onOpenLogs={handleOpenLogs}
             expandedLogProjectId={expandedLogProjectId}
             healthStatuses={healthStatuses}
+            onToggleAutostart={handleToggleAutostart}
           />
         )
       )}
