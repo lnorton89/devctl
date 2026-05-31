@@ -104,6 +104,15 @@ Plans:
 
 **UI hint:** yes
 
+**Plans:** 2 plans
+
+Plans:
+
+**Wave 1**
+
+- [ ] 04-01-PLAN.md — Server-side autostart boot engine and entry-point wiring
+- [ ] 04-02-PLAN.md — Client inline Switch toggle with optimistic update
+
 **Success criteria:**
 
 1. User can toggle autostart per project.
