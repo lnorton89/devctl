@@ -720,4 +720,99 @@ describe('ProjectRegistryPage', () => {
       ).toBeInTheDocument();
     });
   });
+
+  // ===================================================================
+  // Phase 4: Autostart toggle
+  // ===================================================================
+
+  describe('autostart toggle', () => {
+    it('shows Auto column header in desktop table', async () => {
+      mockListProjects.mockResolvedValue([
+        sampleProject({ id: 'p1', name: 'Auto App' }),
+      ]);
+      render(<ProjectRegistryPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Auto App')).toBeInTheDocument();
+      });
+
+      expect(screen.getByText('Auto')).toBeInTheDocument();
+    });
+
+    it('renders autostart Switch in the desktop table', async () => {
+      mockListProjects.mockResolvedValue([
+        sampleProject({ id: 'p1', name: 'Switch App', autostart: true }),
+      ]);
+      render(<ProjectRegistryPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Switch App')).toBeInTheDocument();
+      });
+
+      const toggle = screen.getByRole('switch', { name: /autostart switch app/i });
+      expect(toggle).toBeInTheDocument();
+      expect(toggle).toBeChecked();
+    });
+
+    it('sends updateProject when autostart Switch is toggled on', async () => {
+      const project = sampleProject({ id: 'p1', name: 'Toggle On', autostart: false });
+      mockListProjects.mockResolvedValue([project]);
+      mockUpdateProject.mockResolvedValue({ ...project, autostart: true });
+
+      const user = userEvent.setup();
+      render(<ProjectRegistryPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Toggle On')).toBeInTheDocument();
+      });
+
+      const toggle = screen.getByRole('switch', { name: /autostart toggle on/i });
+      await user.click(toggle);
+
+      await waitFor(() => {
+        expect(mockUpdateProject).toHaveBeenCalledWith('p1', expect.objectContaining({ autostart: true }));
+      });
+    });
+
+    it('reverts Switch on API error (optimistic rollback)', async () => {
+      const project = sampleProject({ id: 'p1', name: 'Rollback', autostart: false });
+      mockListProjects.mockResolvedValue([project]);
+      mockUpdateProject.mockRejectedValue(new Error('Network error'));
+
+      const user = userEvent.setup();
+      render(<ProjectRegistryPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Rollback')).toBeInTheDocument();
+      });
+
+      const toggle = screen.getByRole('switch', { name: /autostart rollback/i });
+      expect(toggle).not.toBeChecked();
+      await user.click(toggle);
+
+      // Wait for error snackbar to show
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Could not update autostart for Rollback/),
+        ).toBeInTheDocument();
+      });
+
+      // Switch should be unchecked again (rolled back)
+      expect(toggle).not.toBeChecked();
+    });
+
+    it('shows autostart Switch checked for autostart-enabled project', async () => {
+      mockListProjects.mockResolvedValue([
+        sampleProject({ id: 'p1', name: 'Enabled App', autostart: true }),
+      ]);
+      render(<ProjectRegistryPage />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Enabled App')).toBeInTheDocument();
+      });
+
+      const toggle = screen.getByRole('switch', { name: /autostart enabled app/i });
+      expect(toggle).toBeChecked();
+    });
+  });
 });
