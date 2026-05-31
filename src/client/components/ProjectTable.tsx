@@ -11,6 +11,7 @@ import { Fragment } from 'react';
 import {
   Box,
   Collapse,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -54,6 +55,8 @@ export interface ProjectTableProps {
   expandedLogProjectId?: string | null;
   /** Phase 3 — port/health check results per project. */
   healthStatuses?: Map<string, HealthStatus>;
+  /** Phase 4 — autostart toggle handler. */
+  onToggleAutostart?: (project: ProjectConfig, autostart: boolean) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -195,6 +198,7 @@ export default function ProjectTable({
   onOpenLogs,
   expandedLogProjectId,
   healthStatuses,
+  onToggleAutostart,
 }: ProjectTableProps) {
   if (projects.length === 0) {
     return null;
@@ -211,6 +215,7 @@ export default function ProjectTable({
             <TableCell>Host path</TableCell>
             <TableCell>Command</TableCell>
             {hasPortConfig && <TableCell sx={{ width: 80 }}>Port</TableCell>}
+            <TableCell sx={{ width: 60 }}>Auto</TableCell>
             <TableCell sx={{ width: 160 }}>Status</TableCell>
             <TableCell sx={{ width: 180 }}>Actions</TableCell>
           </TableRow>
@@ -296,6 +301,19 @@ export default function ProjectTable({
                       )}
                     </TableCell>
                   )}
+
+                  <TableCell>
+                    <Switch
+                      size="small"
+                      color="primary"
+                      checked={project.autostart}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        onToggleAutostart?.(project, e.target.checked);
+                      }}
+                      slotProps={{ input: { 'aria-label': `Autostart ${project.name}` } }}
+                    />
+                  </TableCell>
 
                   <TableCell>
                     {state ? (
@@ -392,7 +410,7 @@ export default function ProjectTable({
                   </TableCell>
                 </TableRow>
                 <TableRow>
-                  <TableCell colSpan={hasPortConfig ? 6 : 5} sx={{ py: 0, borderBottom: logsExpanded ? undefined : 0 }}>
+                  <TableCell colSpan={hasPortConfig ? 7 : 6} sx={{ py: 0, borderBottom: logsExpanded ? undefined : 0 }}>
                     <Collapse in={logsExpanded} timeout="auto" unmountOnExit>
                       <Box sx={{ py: 2 }}>
                         <LiveProjectLogs project={project} />

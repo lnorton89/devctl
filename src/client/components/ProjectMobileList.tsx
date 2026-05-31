@@ -9,6 +9,7 @@
 
 import {
   Box,
+  Switch,
   Typography,
   IconButton,
   Chip,
@@ -46,6 +47,8 @@ export interface ProjectMobileListProps {
   expandedLogProjectId?: string | null;
   /** Phase 3 — port/health check results per project. */
   healthStatuses?: Map<string, HealthStatus>;
+  /** Phase 4 — autostart toggle handler. */
+  onToggleAutostart?: (project: ProjectConfig, autostart: boolean) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -156,6 +159,7 @@ export default function ProjectMobileList({
   onOpenLogs,
   expandedLogProjectId,
   healthStatuses,
+  onToggleAutostart,
 }: ProjectMobileListProps) {
   if (projects.length === 0) {
     return null;
@@ -306,6 +310,25 @@ export default function ProjectMobileList({
               {project.port && (
                 <MetadataRow label="Port" value={String(project.port)} />
               )}
+              <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ minWidth: 60, flexShrink: 0, fontWeight: 500 }}
+                >
+                  Autostart
+                </Typography>
+                <Switch
+                  size="small"
+                  color="primary"
+                  checked={project.autostart}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    onToggleAutostart?.(project, e.target.checked);
+                  }}
+                  slotProps={{ input: { 'aria-label': `Autostart ${project.name}` } }}
+                />
+              </Box>
             </Box>
 
             <Collapse in={logsExpanded} timeout="auto" unmountOnExit>
