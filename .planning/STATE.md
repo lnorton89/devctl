@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-last_updated: "2026-05-30T12:00:00.000Z"
+last_updated: "2026-05-30T15:30:00.000Z"
 progress:
   total_phases: 5
-  completed_phases: 2
+  completed_phases: 3
   total_plans: 15
-  completed_plans: 13
-  percent: 40
+  completed_plans: 15
+  percent: 60
 ---
 
 # State: devctl
@@ -37,11 +37,11 @@ Phase 3: Operational Dashboard, Status, and Logs
 
 Phase 1 and Phase 2 are complete. Phase 2 implementation now covers lifecycle DTOs, package script parsing, process management, lifecycle API routes, registry UI lifecycle controls, directory/script project creation, and per-project log viewing.
 
-Phase 3 plans (03-01 and 03-02) are verified and ready for execution.
+Phase 3 is complete. The implementation covers: `unhealthy` process state with server-side running↔unhealthy transitions, TCP port occupancy detection (pre-start block with 409, post-start health monitoring), HTTP health URL reachability checks, Port column (desktop) / Port metadata row (mobile) with tri-state indicator dots, and health polling at the existing 1s interval. Phase 3 requirements OBS-01 through OBS-04 and UI-01 through UI-03 are all delivered. OBS-03 (log viewer) was pre-existing from Phase 2.
 
 ## Next Action
 
-Execute Phase 3: implement port occupancy detection (OBS-04), health URL reachability checks (OBS-02), `unhealthy` state (OBS-01), and Port column UI.
+Discuss Phase 4: Autostart Automation — toggle autostart per project, auto-start on container boot, failure capture in status/logs.
 
 ## Accumulated Context
 
@@ -85,6 +85,15 @@ Execute Phase 3: implement port occupancy detection (OBS-04), health URL reachab
 - [Phase 02]: Lifecycle routes validate stored scriptName against package.json immediately before start/restart. — Prevents stale or missing npm scripts from reaching process execution.
 - [Phase 02]: createApp accepts an optional ProcessManager for lifecycle route tests. — Preserves dependency injection and avoids real command execution in integration tests.
 - [Phase 02]: Lifecycle routes mount before CRUD routes at /api/projects. — Express route order keeps action/status/log paths from being shadowed by registry handlers.
+- [Phase 03]: `checkPortOccupied` returns `{ occupied: true/false }` universally. Pre-start: occupied=true → block. Post-start: occupied=false → unhealthy.
+- [Phase 03]: Health endpoint is the sole driver of `unhealthy↔running` transitions. running + check failure → setState('unhealthy'). unhealthy + checks pass → setState('running').
+- [Phase 03]: Pre-start port check runs before script validation to fail fast without package.json I/O.
+- [Phase 03]: AbortController-based timeouts (2s) for both port and health checks.
+- [Phase 03]: setState added to ProcessManager interface — state transitions happen at the route layer, not inside processManager.
+- [Phase 03]: Port column uses `hasPortConfig` computed from projects array — collapses when no project has a port, visible when any does.
+- [Phase 03]: Port indicator dot tri-state: green (occupied/responding), red (not responding), grey (no data yet).
+- [Phase 03]: Health polling runs inside existing 1s interval alongside process status — only for running/unhealthy states.
+- [Phase 03]: Health status deleted from map (not reset) when polling stops or lifecycle actions fire — prevents stale indicators.
 
 ## Performance Metrics
 
@@ -94,6 +103,8 @@ Execute Phase 3: implement port occupancy detection (OBS-04), health URL reachab
 | Phase 02 P01 | 5 min | 2 tasks | 6 files |
 | Phase 02 P02 | 5 min | 3 tasks | 3 files |
 | Phase 02 P03 | 4 min | 3 tasks | 3 files |
+| Phase 03 P01 | 8 min | 2 tasks | 8 files |
+| Phase 03 P02 | 12 min | 4 tasks | 5 files |
 
 ### Quick Tasks Completed
 

@@ -21,10 +21,10 @@
 
 ### Status and Logs
 
-- [ ] **OBS-01**: User can see each project's current status: stopped, starting, running, unhealthy, stopping, or failed.
-- [ ] **OBS-02**: User can see whether a configured port or health URL is reachable.
-- [ ] **OBS-03**: User can view recent stdout and stderr logs for each managed project.
-- [ ] **OBS-04**: User can identify when a port is already occupied before or during startup.
+- [x] **OBS-01**: User can see each project's current status: stopped, starting, running, unhealthy, stopping, or failed.
+- [x] **OBS-02**: User can see whether a configured port or health URL is reachable.
+- [x] **OBS-03**: User can view recent stdout and stderr logs for each managed project.
+- [x] **OBS-04**: User can identify when a port is already occupied before or during startup.
 
 ### Automation
 
@@ -40,9 +40,9 @@
 
 ### User Interface
 
-- [ ] **UI-01**: User can manage projects from a Material UI dashboard optimized for scanning and repeated actions.
-- [ ] **UI-02**: User can distinguish lifecycle states through accessible labels, status chips, and icon controls.
-- [ ] **UI-03**: User can inspect and act on a project without navigating through a marketing or landing page.
+- [x] **UI-01**: User can manage projects from a Material UI dashboard optimized for scanning and repeated actions.
+- [x] **UI-02**: User can distinguish lifecycle states through accessible labels, status chips, and icon controls.
+- [x] **UI-03**: User can inspect and act on a project without navigating through a marketing or landing page.
 
 ## v2 Requirements
 
@@ -86,19 +86,19 @@
 | LIFE-02 | Phase 2 | Complete |
 | LIFE-03 | Phase 2 | Complete |
 | LIFE-04 | Phase 2 | Complete |
-| OBS-01 | Phase 3 | Pending |
-| OBS-02 | Phase 3 | Pending |
-| OBS-03 | Phase 3 | Pending |
-| OBS-04 | Phase 3 | Pending |
+| OBS-01 | Phase 3 | Complete |
+| OBS-02 | Phase 3 | Complete |
+| OBS-03 | Phase 3 | Complete |
+| OBS-04 | Phase 3 | Complete |
 | AUTO-01 | Phase 4 | Pending |
 | AUTO-02 | Phase 4 | Pending |
 | AUTO-03 | Phase 4 | Pending |
 | DOCK-01 | Phase 5 | Pending |
 | DOCK-02 | Phase 5 | Pending |
 | DOCK-03 | Phase 5 | Pending |
-| UI-01 | Phase 3 | Pending |
-| UI-02 | Phase 3 | Pending |
-| UI-03 | Phase 3 | Pending |
+| UI-01 | Phase 3 | Complete |
+| UI-02 | Phase 3 | Complete |
+| UI-03 | Phase 3 | Complete |
 
 **Coverage:**
 - v1 requirements: 21 total
@@ -107,4 +107,4 @@
 
 ---
 *Requirements defined: 2026-05-29*
-*Last updated: 2026-05-29 after initial definition*
+*Last updated: 2026-05-30 after Phase 3 completion*
