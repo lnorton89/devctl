@@ -55,6 +55,42 @@ npm test -- --run    # Run once (CI-friendly)
 npm run typecheck
 ```
 
+### Start on Windows
+
+devctl uses a split runtime on Windows:
+
+- Docker runs the dashboard on `http://localhost:5273`.
+- A Windows startup task runs the host executor API on port `4002`.
+- Every registered project script runs as a native Windows process.
+- The Docker-to-Windows API bridge uses a generated token stored in
+  `data/host-executor.env`.
+
+Install and start the Windows host executor:
+
+```powershell
+npm run startup:install
+```
+
+Start the Docker dashboard:
+
+```powershell
+docker compose up -d --build
+```
+
+The scheduled task starts the host executor at Windows sign-in and launches it
+immediately when installed. Docker uses `restart: unless-stopped`, so the
+dashboard returns when Docker Desktop starts.
+
+Useful maintenance commands:
+
+```powershell
+npm run startup:status
+npm run startup:uninstall
+docker compose down
+```
+
+Startup logs are written to `data/logs/windows-host.log`.
+
 ---
 
 ## Usage

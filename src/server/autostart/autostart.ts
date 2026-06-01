@@ -10,7 +10,6 @@
  */
 
 import type { RegistryRepository } from '../registry/registryRepository.js';
-import type { ProcessManager } from '../process/processManager.js';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -36,6 +35,10 @@ export interface AutostartResult {
   errors: AutostartError[];
 }
 
+interface AutostartProcessManager {
+  start(projectId: string, scriptName: string, cwd: string): unknown;
+}
+
 // ---------------------------------------------------------------------------
 // Autostart
 // ---------------------------------------------------------------------------
@@ -53,8 +56,8 @@ export interface AutostartResult {
  * @returns Result with started/failed counts and failure details.
  */
 export async function autostartProjects(
-  repository: RegistryRepository,
-  processManager: ProcessManager,
+  repository: Pick<RegistryRepository, 'listProjects'>,
+  processManager: AutostartProcessManager,
 ): Promise<AutostartResult> {
   const projects = await repository.listProjects();
   const autostartCandidates = projects.filter((p) => p.autostart === true);

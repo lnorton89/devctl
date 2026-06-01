@@ -110,8 +110,8 @@ Plans:
 
 **Wave 1**
 
-- [ ] 04-01-PLAN.md — Server-side autostart boot engine and entry-point wiring
-- [ ] 04-02-PLAN.md — Client inline Switch toggle with optimistic update
+- [x] 04-01-PLAN.md — Server-side autostart boot engine and entry-point wiring
+- [x] 04-02-PLAN.md — Client inline Switch toggle with optimistic update
 
 **Success criteria:**
 

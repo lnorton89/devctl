@@ -8,6 +8,7 @@
  */
 
 import { describe, expect, it, vi, beforeEach, afterEach } from 'vitest';
+import type { Mock } from 'vitest';
 import { autostartProjects } from '../../src/server/autostart/autostart.js';
 import type { ProjectConfig } from '../../src/shared/projectSchema.js';
 
@@ -40,14 +41,14 @@ function sampleProject(overrides?: Partial<ProjectConfig>): ProjectConfig {
 // ---------------------------------------------------------------------------
 
 describe('autostartProjects', () => {
-  let mockListProjects: ReturnType<typeof vi.fn>;
-  let mockStart: ReturnType<typeof vi.fn>;
+  let mockListProjects: Mock<() => Promise<ProjectConfig[]>>;
+  let mockStart: Mock<(projectId: string, scriptName: string, cwd: string) => void>;
   let mockRepository: { listProjects: typeof mockListProjects };
   let mockProcessManager: { start: typeof mockStart };
 
   beforeEach(() => {
-    mockListProjects = vi.fn();
-    mockStart = vi.fn();
+    mockListProjects = vi.fn<() => Promise<ProjectConfig[]>>();
+    mockStart = vi.fn<(projectId: string, scriptName: string, cwd: string) => void>();
     mockRepository = { listProjects: mockListProjects };
     mockProcessManager = { start: mockStart };
   });

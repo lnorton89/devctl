@@ -28,9 +28,9 @@
 
 ### Automation
 
-- [ ] **AUTO-01**: User can mark selected projects to start automatically when devctl starts.
-- [ ] **AUTO-02**: devctl starts autostart-enabled projects after the container launches.
-- [ ] **AUTO-03**: User can disable autostart for a project without deleting the project.
+- [x] **AUTO-01**: User can mark selected projects to start automatically when devctl starts.
+- [x] **AUTO-02**: devctl starts autostart-enabled projects after the container launches.
+- [x] **AUTO-03**: User can disable autostart for a project without deleting the project.
 
 ### Docker Runtime
 
@@ -90,9 +90,9 @@
 | OBS-02 | Phase 3 | Complete |
 | OBS-03 | Phase 3 | Complete |
 | OBS-04 | Phase 3 | Complete |
-| AUTO-01 | Phase 4 | Pending |
-| AUTO-02 | Phase 4 | Pending |
-| AUTO-03 | Phase 4 | Pending |
+| AUTO-01 | Phase 4 | Complete |
+| AUTO-02 | Phase 4 | Complete |
+| AUTO-03 | Phase 4 | Complete |
 | DOCK-01 | Phase 5 | Pending |
 | DOCK-02 | Phase 5 | Pending |
 | DOCK-03 | Phase 5 | Pending |
@@ -107,4 +107,4 @@
 
 ---
 *Requirements defined: 2026-05-29*
-*Last updated: 2026-05-30 after Phase 3 completion*
+*Last updated: 2026-05-30 after Phase 4 completion*

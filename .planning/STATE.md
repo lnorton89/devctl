@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v1.0
 milestone_name: milestone
 status: in-progress
-last_updated: "2026-05-30T15:30:00.000Z"
+last_updated: "2026-05-30T18:00:00.000Z"
 progress:
   total_phases: 5
-  completed_phases: 3
+  completed_phases: 4
 total_plans: 17
-completed_plans: 15
-  percent: 60
+completed_plans: 17
+  percent: 80
 ---
 
 # State: devctl
@@ -18,12 +18,12 @@ completed_plans: 15
 
 See: .planning/PROJECT.md (updated 2026-05-29)
 
-**Last session:** 2026-05-30T11:36:00.000Z
+**Last session:** 2026-05-30T18:00:00.000Z
 
-**Stopped at:** Completed 02-06-PLAN.md
+**Stopped at:** Completed 04-02-PLAN.md
 
 **Core value:** devctl reliably brings the right local dev servers up and down with clear status, without requiring manual terminal juggling after boot.
-**Current focus:** Phase 03 - operational-dashboard-status-and-logs
+**Current focus:** Phase 05 - docker-boot-runtime-and-hardening
 
 ## Current Milestone
 
@@ -31,17 +31,15 @@ v1 local lifecycle controller
 
 ## Current Phase
 
-Phase 3: Operational Dashboard, Status, and Logs
+Phase 5: Docker Boot Runtime and Hardening
 
 ## Status
 
-Phase 1 and Phase 2 are complete. Phase 2 implementation now covers lifecycle DTOs, package script parsing, process management, lifecycle API routes, registry UI lifecycle controls, directory/script project creation, and per-project log viewing.
-
-Phase 3 is complete. The implementation covers: `unhealthy` process state with server-side running↔unhealthy transitions, TCP port occupancy detection (pre-start block with 409, post-start health monitoring), HTTP health URL reachability checks, Port column (desktop) / Port metadata row (mobile) with tri-state indicator dots, and health polling at the existing 1s interval. Phase 3 requirements OBS-01 through OBS-04 and UI-01 through UI-03 are all delivered. OBS-03 (log viewer) was pre-existing from Phase 2.
+Phases 1 through 4 are complete. Phase 4 implementation covers: server-side autostart boot engine with parallel Promise.allSettled startup in src/server/autostart/autostart.ts, wired into listen() callback in src/server/index.ts, and client inline MUI Switch toggle in desktop table "Auto" column and mobile list Autostart row, with optimistic PUT update and rollback on API failure. Phase 4 requirements AUTO-01 through AUTO-03 are all delivered.
 
 ## Next Action
 
-Discuss Phase 4: Autostart Automation — toggle autostart per project, auto-start on container boot, failure capture in status/logs.
+Phase 5: Docker Boot Runtime and Hardening — Dockerfile, compose, boot docs, and verification.
 
 ## Accumulated Context
 

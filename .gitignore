@@ -2,3 +2,5 @@ node_modules/
 dist/
 *.local
 data/projects.yaml
+data/logs/
+data/host-executor.env

@@ -13,6 +13,7 @@
 
 import express from 'express';
 import type { Request, Response, NextFunction } from 'express';
+import { timingSafeEqual } from 'node:crypto';
 import { createRegistryRepository } from './registry/registryRepository.js';
 import type { RegistryRepository } from './registry/registryRepository.js';
 import {
@@ -56,6 +57,18 @@ export function createApp(options?: CreateAppOptions): express.Application {
 
   // --- JSON body parser with size limit (T-01-03-03 DoS mitigation) ---
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
+
+  // --- Optional host-executor authentication for the Docker-to-Windows bridge ---
+  const hostExecutorToken = process.env.DEVCTL_HOST_EXECUTOR_TOKEN;
+  if (hostExecutorToken) {
+    app.use('/api', (req, res, next) => {
+      const suppliedToken = req.get('x-devctl-host-token');
+      if (!suppliedToken || !tokensMatch(suppliedToken, hostExecutorToken)) {
+        return res.status(401).json({ message: 'Unauthorized' });
+      }
+      next();
+    });
+  }
 
   // --- Health check (no body logging per D-06 / T-01-03-01) ---
   app.get('/api/health', (_req, res) => {
@@ -101,3 +114,9 @@ export function createApp(options?: CreateAppOptions): express.Application {
 }
 
 export default createApp;
+
+function tokensMatch(suppliedToken: string, expectedToken: string): boolean {
+  const supplied = Buffer.from(suppliedToken);
+  const expected = Buffer.from(expectedToken);
+  return supplied.length === expected.length && timingSafeEqual(supplied, expected);
+}

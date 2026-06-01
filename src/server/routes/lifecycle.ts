@@ -27,6 +27,7 @@ import {
   PackageJsonNotFoundError,
   PackageJsonParseError,
   parsePackageJson,
+  readRawPackageJson,
 } from '../process/packageJsonParser.js';
 import {
   checkPortOccupied,
@@ -227,6 +228,29 @@ export function createLifecycleRouter(
     } catch (error) {
       if (error instanceof ProjectNotFoundError) {
         return res.status(404).json({ message: error.message });
+      }
+      next(error);
+    }
+  });
+
+  router.get('/:id/package-json', async (req, res, next) => {
+    try {
+      const project = await loadProject(repository, req.params.id);
+
+      if (!project.hostPath) {
+        return res.status(400).json({ message: 'Project has no host path configured.' });
+      }
+
+      const result = await readRawPackageJson(project.hostPath);
+      res.json(result);
+    } catch (error) {
+      if (error instanceof ProjectNotFoundError) {
+        return res.status(404).json({ message: error.message });
+      }
+      if (error instanceof PackageJsonNotFoundError) {
+        return res.status(404).json({
+          message: 'No package.json found at this path.',
+        });
       }
       next(error);
     }

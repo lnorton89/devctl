@@ -1,0 +1,13 @@
+services:
+  devctl:
+    build:
+      context: .
+    restart: unless-stopped
+    environment:
+      VITE_API_PROXY_TARGET: http://host.docker.internal:4002
+    env_file:
+      - ./data/host-executor.env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:5273:5273"

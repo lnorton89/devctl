@@ -96,3 +96,14 @@ export const healthStatusSchema = z.object({
 });
 
 export type HealthStatus = z.output<typeof healthStatusSchema>;
+
+// ---------------------------------------------------------------------------
+// Package.json Content (Phase 5 — quick task)
+// ---------------------------------------------------------------------------
+
+export const getPackageJsonResponseSchema = z.object({
+  content: z.string(),
+  path: z.string(),
+});
+
+export type GetPackageJsonResponse = z.output<typeof getPackageJsonResponseSchema>;

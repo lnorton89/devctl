@@ -1,0 +1,6 @@
+node_modules
+dist
+.git
+.planning
+data/projects.yaml
+npm-debug.log*

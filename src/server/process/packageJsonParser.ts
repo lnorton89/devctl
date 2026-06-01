@@ -65,6 +65,24 @@ function filterStringScripts(value: unknown): PackageScripts {
   }, {});
 }
 
+export async function readRawPackageJson(
+  dirPath: string,
+): Promise<{ content: string; path: string }> {
+  const packageJsonPath = resolve(dirPath, 'package.json');
+  let raw: string;
+
+  try {
+    raw = await readFile(packageJsonPath, 'utf8');
+  } catch (error) {
+    if (isNodeError(error) && error.code === 'ENOENT') {
+      throw new PackageJsonNotFoundError(packageJsonPath);
+    }
+    throw error;
+  }
+
+  return { content: raw, path: packageJsonPath };
+}
+
 function isNodeError(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && 'code' in error;
 }

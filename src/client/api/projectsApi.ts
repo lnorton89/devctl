@@ -15,6 +15,7 @@ import type {
   HealthStatus,
   PackageJsonBrowserResponse,
   ParseScriptsResponse,
+  GetPackageJsonResponse,
 } from '../../shared/lifecycleSchema.js';
 
 // ---------------------------------------------------------------------------
@@ -253,4 +254,16 @@ export async function browsePackageJson(
   const query = dirPath ? `?path=${encodeURIComponent(dirPath)}` : '';
   const response = await fetch(`${API_BASE}/package-json-browser${query}`);
   return handleResponse<PackageJsonBrowserResponse>(response);
+}
+
+/**
+ * Get the raw package.json content for a project.
+ *
+ * @param id  The stable project ID.
+ * @returns The raw package.json content and resolved path.
+ * @throws {ApiError} On not-found (404) or server errors.
+ */
+export async function getPackageJson(id: string): Promise<GetPackageJsonResponse> {
+  const response = await fetch(`${API_BASE}/${encodeURIComponent(id)}/package-json`);
+  return handleResponse<GetPackageJsonResponse>(response);
 }

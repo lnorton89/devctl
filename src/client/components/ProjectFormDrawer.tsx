@@ -54,6 +54,7 @@ import {
   parseScripts,
   getProjectLogs,
 } from '../api/projectsApi.js';
+import PackageJsonDialog from './PackageJsonDialog.js';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -141,6 +142,9 @@ export default function ProjectFormDrawer({
   const [logData, setLogData] = useState<LogData | null>(null);
   const [logsLoading, setLogsLoading] = useState(false);
   const [logsError, setLogsError] = useState<string | null>(null);
+
+  // Package.json viewer (edit mode only)
+  const [packageJsonOpen, setPackageJsonOpen] = useState(false);
 
   // Track initial values to detect changes
   const initialFormRef = useRef<FormState | null>(null);
@@ -490,6 +494,16 @@ export default function ProjectFormDrawer({
                 </Typography>
               )}
             </Box>
+            {isEdit && form.directoryPath && (
+              <Button
+                variant="text"
+                size="small"
+                onClick={() => setPackageJsonOpen(true)}
+                sx={{ mt: 0.5 }}
+              >
+                View package.json
+              </Button>
+            )}
           </Box>
 
           {/* Script selection */}
@@ -709,6 +723,15 @@ export default function ProjectFormDrawer({
           <Button onClick={() => setBrowserOpen(false)}>Cancel</Button>
         </DialogActions>
       </Dialog>
+
+      {/* Package.json viewer dialog */}
+      {project && (
+        <PackageJsonDialog
+          open={packageJsonOpen}
+          project={project}
+          onClose={() => setPackageJsonOpen(false)}
+        />
+      )}
     </Drawer>
   );
 }
